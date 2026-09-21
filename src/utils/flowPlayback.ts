@@ -14,7 +14,8 @@ export type FlowPlaybackAction =
   | { type: 'NEXT_STEP' }
   | { type: 'PREV_STEP' }
   | { type: 'SET_SPEED'; speed: number }
-  | { type: 'ADVANCE' };
+  | { type: 'ADVANCE' }
+  | { type: 'RECONCILE'; flowExists: boolean; connectorExists: boolean };
 
 export const clampStepIndex = (stepIndex: number, stepsCount: number) => {
   if (stepsCount <= 0) return 0;
@@ -99,6 +100,46 @@ export const flowPlaybackReducer = (
       }
 
       return { ...state, stepIndex: state.stepIndex + 1 };
+    }
+
+    // Reconciles playback with the model after it changes underneath it
+    // (src/hooks/useFlowPlayback.ts triggers this from an effect). Never
+    // touches an unselected playback (flowId === null). `stepsCount` is the
+    // steps of the currently selected flow (0 when it no longer exists, in
+    // which case `flowExists` carries the real reason); `connectorExists`
+    // is whether the step at the (clamped) current index still resolves to
+    // a real connector.
+    case 'RECONCILE': {
+      if (state.flowId === null) return state;
+
+      if (!action.flowExists) {
+        return {
+          flowId: null,
+          status: 'IDLE',
+          stepIndex: 0,
+          speed: state.speed
+        };
+      }
+
+      if (stepsCount === 0) {
+        if (state.status === 'IDLE' && state.stepIndex === 0) return state;
+
+        return { ...state, status: 'IDLE', stepIndex: 0 };
+      }
+
+      const clampedIndex = clampStepIndex(state.stepIndex, stepsCount);
+
+      if (!action.connectorExists) {
+        if (state.status === 'IDLE' && state.stepIndex === clampedIndex) {
+          return state;
+        }
+
+        return { ...state, status: 'IDLE', stepIndex: clampedIndex };
+      }
+
+      if (clampedIndex === state.stepIndex) return state;
+
+      return { ...state, stepIndex: clampedIndex };
     }
 
     default:

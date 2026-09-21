@@ -103,7 +103,8 @@ export const INITIAL_UI_STATE = {
     position: CoordsUtils.zero(),
     offset: CoordsUtils.zero()
   },
-  flowPlayback: INITIAL_FLOW_PLAYBACK
+  flowPlayback: INITIAL_FLOW_PLAYBACK,
+  activeNodePulse: null
 };
 export const INITIAL_SCENE_STATE = {
   connectors: {},

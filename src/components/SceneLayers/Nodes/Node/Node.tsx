@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Box, Typography, Stack } from '@mui/material';
+import { Box, Typography, Stack, useTheme } from '@mui/material';
+import { keyframes } from '@emotion/react';
 import {
   PROJECTED_TILE_SIZE,
   DEFAULT_LABEL_HEIGHT,
@@ -9,8 +10,18 @@ import { getTilePosition } from 'src/utils';
 import { useIcon } from 'src/hooks/useIcon';
 import { ViewItem } from 'src/types';
 import { useModelItem } from 'src/hooks/useModelItem';
+import { useUiStateStore } from 'src/stores/uiStateStore';
 import { ExpandableLabel } from 'src/components/Label/ExpandableLabel';
 import { MarkdownEditor } from 'src/components/MarkdownEditor/MarkdownEditor';
+
+// Short, subtle glow shown on a node when a flow playback packet arrives
+// (src/components/SceneLayers/Connectors/ConnectorPacket.tsx sets
+// uiStateStore.activeNodePulse; see src/hooks/useFlowPlayback.ts).
+const pulseAnimation = keyframes`
+  0% { opacity: 0; transform: scale(0.7); }
+  35% { opacity: 0.8; }
+  100% { opacity: 0; transform: scale(1.5); }
+`;
 
 interface Props {
   node: ViewItem;
@@ -18,8 +29,15 @@ interface Props {
 }
 
 export const Node = ({ node, order }: Props) => {
+  const theme = useTheme();
   const modelItem = useModelItem(node.id);
   const { iconComponent } = useIcon(modelItem.icon);
+
+  const activeNodePulse = useUiStateStore((state) => {
+    return state.activeNodePulse;
+  });
+
+  const isPulsing = activeNodePulse?.nodeId === node.id;
 
   const position = useMemo(() => {
     return getTilePosition({
@@ -73,6 +91,26 @@ export const Node = ({ node, order }: Props) => {
               </Stack>
             </ExpandableLabel>
           </Box>
+        )}
+        {isPulsing && (
+          <Box
+            key={activeNodePulse?.token}
+            sx={{
+              position: 'absolute',
+              pointerEvents: 'none',
+              width: PROJECTED_TILE_SIZE.width,
+              height: PROJECTED_TILE_SIZE.height,
+              left: -PROJECTED_TILE_SIZE.width / 2,
+              top: -PROJECTED_TILE_SIZE.height,
+              borderRadius: '50%',
+              backgroundColor: theme.palette.primary.main,
+              opacity: 0,
+              animation: `${pulseAnimation} 600ms ease-out forwards`,
+              '@media (prefers-reduced-motion: reduce)': {
+                animation: 'none'
+              }
+            }}
+          />
         )}
         {iconComponent && (
           <Box

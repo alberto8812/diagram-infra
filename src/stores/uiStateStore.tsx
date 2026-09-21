@@ -16,6 +16,7 @@ const initialState = () => {
       zoom: INITIAL_UI_STATE.zoom,
       scroll: INITIAL_UI_STATE.scroll,
       flowPlayback: INITIAL_UI_STATE.flowPlayback,
+      activeNodePulse: INITIAL_UI_STATE.activeNodePulse,
       view: '',
       mainMenuOptions: [],
       editorMode: 'EXPLORABLE_READONLY',
@@ -53,7 +54,9 @@ const initialState = () => {
               offset: CoordsUtils.zero()
             },
             itemControls: null,
-            zoom: 1
+            zoom: 1,
+            flowPlayback: INITIAL_UI_STATE.flowPlayback,
+            activeNodePulse: INITIAL_UI_STATE.activeNodePulse
           });
         },
         setMode: (mode) => {
@@ -159,6 +162,18 @@ const initialState = () => {
               stepsLength
             )
           });
+        },
+        reconcile: (stepsCount, flowExists, connectorExists) => {
+          set({
+            flowPlayback: flowPlaybackReducer(
+              get().flowPlayback,
+              { type: 'RECONCILE', flowExists, connectorExists },
+              stepsCount
+            )
+          });
+        },
+        setActiveNodePulse: (activeNodePulse) => {
+          set({ activeNodePulse });
         }
       }
     };

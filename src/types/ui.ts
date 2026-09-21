@@ -149,6 +149,15 @@ export interface FlowPlayback {
   speed: number;
 }
 
+// Which node should show a short arrival pulse (ConnectorPacket.tsx sets
+// this when a packet reaches its destination, Node.tsx consumes it).
+// `token` changes on every arrival so the same node can re-trigger its
+// pulse animation on consecutive steps. UI state only, never persisted.
+export interface NodePulse {
+  nodeId: string;
+  token: number;
+}
+
 export interface UiState {
   view: string;
   mainMenuOptions: MainMenuOptions;
@@ -165,6 +174,7 @@ export interface UiState {
   rendererEl: HTMLDivElement | null;
   enableDebugTools: boolean;
   flowPlayback: FlowPlayback;
+  activeNodePulse: NodePulse | null;
 }
 
 export interface UiStateActions {
@@ -193,6 +203,12 @@ export interface UiStateActions {
   prevStep: (stepsLength: number) => void;
   setSpeed: (speed: number) => void;
   advance: (stepsLength: number) => void;
+  reconcile: (
+    stepsCount: number,
+    flowExists: boolean,
+    connectorExists: boolean
+  ) => void;
+  setActiveNodePulse: (pulse: NodePulse | null) => void;
 }
 
 export type UiStateStore = UiState & {

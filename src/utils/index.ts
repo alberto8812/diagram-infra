@@ -6,3 +6,4 @@ export * from './renderer';
 export * from './exportOptions';
 export * from './model';
 export * from './flowPlayback';
+export * from './flowPacket';

@@ -5,7 +5,10 @@ import { UNPROJECTED_TILE_SIZE } from 'src/config';
 import {
   getAnchorTile,
   getColorVariant,
-  getConnectorDirectionIcon
+  getConnectorDirectionIcon,
+  getPacketPathPoints,
+  getPacketDestinationItemId,
+  getStepDurationMs
 } from 'src/utils';
 import { Circle } from 'src/components/Circle/Circle';
 import { Svg } from 'src/components/Svg/Svg';
@@ -13,6 +16,9 @@ import { useIsoProjection } from 'src/hooks/useIsoProjection';
 import { useConnector } from 'src/hooks/useConnector';
 import { useScene } from 'src/hooks/useScene';
 import { useColor } from 'src/hooks/useColor';
+import { useFlowPlayback } from 'src/hooks/useFlowPlayback';
+import { useReducedMotion } from 'src/hooks/useReducedMotion';
+import { ConnectorPacket } from './ConnectorPacket';
 
 interface Props {
   connector: ReturnType<typeof useScene>['connectors'][0];
@@ -121,6 +127,62 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
     return ['FORWARD' as const];
   }, [connector.animated, connector.direction]);
 
+  const {
+    flowPlayback,
+    currentStep,
+    currentConnector,
+    advance,
+    setActiveNodePulse
+  } = useFlowPlayback();
+  const reducedMotion = useReducedMotion();
+
+  const packet = useMemo(() => {
+    if (flowPlayback.status === 'IDLE') return null;
+    if (!currentStep || !currentConnector) return null;
+    if (currentConnector.id !== connector.id) return null;
+
+    const tiles = getPacketPathPoints(
+      connector.path.tiles,
+      currentStep.direction
+    );
+    const packetPoints = tiles.map((tile) => {
+      return {
+        x: tile.x * UNPROJECTED_TILE_SIZE + drawOffset.x,
+        y: tile.y * UNPROJECTED_TILE_SIZE + drawOffset.y
+      };
+    });
+
+    const packetColor =
+      currentStep.direction === 'RESPONSE'
+        ? theme.palette.secondary.main
+        : theme.palette.primary.main;
+
+    const destinationItemId = getPacketDestinationItemId(
+      connector.anchors,
+      currentStep.direction
+    );
+
+    return {
+      stepId: currentStep.id,
+      points: packetPoints,
+      color: packetColor,
+      label: currentStep.label,
+      durationMs: getStepDurationMs(currentStep, flowPlayback.speed),
+      destinationItemId
+    };
+  }, [
+    flowPlayback.status,
+    flowPlayback.speed,
+    currentStep,
+    currentConnector,
+    connector.id,
+    connector.path.tiles,
+    connector.anchors,
+    drawOffset,
+    theme.palette.primary.main,
+    theme.palette.secondary.main
+  ]);
+
   return (
     <Box style={css}>
       <Svg
@@ -214,6 +276,28 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
               />
             </g>
           </g>
+        )}
+
+        {packet && (
+          <ConnectorPacket
+            key={packet.stepId}
+            points={packet.points}
+            color={packet.color}
+            label={packet.label}
+            durationMs={packet.durationMs}
+            status={flowPlayback.status === 'PAUSED' ? 'PAUSED' : 'PLAYING'}
+            reducedMotion={reducedMotion}
+            onArrive={() => {
+              if (packet.destinationItemId) {
+                setActiveNodePulse({
+                  nodeId: packet.destinationItemId,
+                  token: Date.now()
+                });
+              }
+
+              advance();
+            }}
+          />
         )}
       </Svg>
     </Box>

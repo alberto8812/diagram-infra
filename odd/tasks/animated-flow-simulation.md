@@ -36,8 +36,8 @@ isometric icons with volume inside the current 2.5D engine.
       dash-offset flow animation, toggle in ConnectorControls
 - [x] T2 Flow model: `flows` schema (steps: connectorId, direction request|response,
       label, durationMs), reducers, types, tests
-- [ ] T3 Playback engine: uiStateStore playback state (play/pause/step/speed/current step)
-- [ ] T4 Packet rendering along connector path + node pulse on arrival
+- [x] T3 Playback engine: uiStateStore playback state (play/pause/step/speed/current step)
+- [x] T4 Packet rendering along connector path + node pulse on arrival
 - [ ] T5 Playback controls in UiOverlay (editor + readonly) and flow step editor
 - [ ] T6 Isometric volume for flat icons: wrap non-isometric icons (e.g. Simple
       Icons CI/CD set) in an extruded isometric block (shaded side faces, logo
@@ -225,7 +225,141 @@ Verification:
   cycle finding from the `utils/flowPlayback.ts` -> `src/config` import. A
   scoped eslint run on every file this task touched reports 0 problems.
 
-Commit: Conventional Commit `feat(ui): add flow playback state`.
+Commit: Conventional Commit `feat(ui): add flow playback state` (d81ef09).
+
+### T4 Packet rendering + node pulse (done)
+Route: delegated direct (touched 10+ non-trivial files: pure geometry util,
+hook, store, types, config, three components, plus new test files).
+
+Changes:
+- `src/utils/flowPacket.ts` (new, pure, React/DOM-free): `getPacketPathPoints`
+  (REQUEST keeps `connector.path.tiles` order start->end, RESPONSE reverses
+  it), `getPolylineLength`/`getPointAtProgress` (pure point-at-progress along
+  a polyline, the fallback used where `SVGGeometryElement` isn't available —
+  e.g. jsdom in tests), and `getPacketDestinationItemId` (resolves the
+  connector's end anchor's `ref.item` for REQUEST, start anchor's for
+  RESPONSE; `null` when that anchor has no item ref). Exported via
+  `src/utils/index.ts`.
+- `src/hooks/useReducedMotion.ts` (new): small hook mirroring the
+  `@media (prefers-reduced-motion: reduce)` query used elsewhere, for the one
+  place (`ConnectorPacket`) that has to branch in JS instead of CSS.
+- `src/components/SceneLayers/Connectors/ConnectorPacket.tsx` (new): renders
+  one packet (a small `<circle>` + optional label `<text>`, counter-flipped
+  via `scale(-1, 1)` on its own group so the label reads normally despite the
+  parent `<Svg>`'s mirror) travelling along `points`. Motion is a GSAP tween
+  over a plain `{ value: 0..1 }` progress object; on each update it resolves
+  the point either via the connector's own `<polyline>`'s
+  `getTotalLength()`/`getPointAtLength()` (guarded with a `typeof` check +
+  try/catch, since jsdom/older browsers don't implement them) or, falling
+  back, via the pure `getPointAtProgress()` util. A second effect
+  play()s/pause()s the *same* tween instance when `status` changes, so
+  PAUSED freezes the packet exactly where it is and PLAY resumes from there
+  — it never restarts the tween. Reduced motion reuses the same tween
+  mechanism (rather than a bare `setTimeout`) with the packet already placed
+  at the destination and a capped `min(durationMs, 400)` duration, so pause
+  still freezes it there instead of silently auto-advancing. The travel
+  effect keys off `[points, durationMs, reducedMotion]`; `advance()` is
+  called through `onArrive` exactly once (guarded by a ref flag), and the
+  tween is always `.kill()`ed on cleanup (step change or unmount), so no
+  tween is ever leaked.
+- `src/components/SceneLayers/Connectors/Connector.tsx`: added a `packet`
+  memo that is `null` unless `flowPlayback.status !== 'IDLE'` and the
+  playback's `currentConnector.id` matches this connector — i.e. it renders
+  for both PLAYING (per the task's literal condition) and PAUSED (needed so
+  a paused packet stays visible/frozen instead of disappearing). Points are
+  computed with the same tile->pixel formula already used for `pathString`,
+  ordered by `getPacketPathPoints(connector.path.tiles, currentStep.direction)`,
+  and colored `theme.palette.primary.main` (REQUEST) or
+  `theme.palette.secondary.main` (RESPONSE) — both theme-derived. The
+  `<ConnectorPacket>` is keyed by `currentStep.id` so React remounts (and
+  thus fully resets) it on every step change, and is rendered last inside
+  the same `<Svg>` that has `transform: scale(-1, 1)` (per the constraint —
+  drawing outside it would mirror the coordinates). `onArrive` sets
+  `activeNodePulse` (when the destination anchor resolved to an item) and
+  then calls `advance()`.
+- `src/components/SceneLayers/Nodes/Node/Node.tsx`: reads
+  `activeNodePulse` from `uiStateStore` and, when it matches `node.id`,
+  renders a keyframe-animated (`opacity`/`scale`, 600ms, `forwards` fill so
+  it stays hidden after) circular glow behind the icon, sized/positioned off
+  `PROJECTED_TILE_SIZE` to roughly match where `IsometricIcon`/
+  `NonIsometricIcon` render. Keyed by `activeNodePulse.token` so the same
+  node can re-trigger the animation on consecutive arrivals. Disabled (kept
+  at `opacity: 0`) under `prefers-reduced-motion: reduce`.
+- `src/types/ui.ts`: added `NodePulse` (`nodeId`, `token`) and
+  `activeNodePulse: NodePulse | null` to `UiState`; `reconcile` and
+  `setActiveNodePulse` to `UiStateActions` (see the RECONCILE fix below for
+  `reconcile`).
+- `src/config.ts` / `src/stores/uiStateStore.tsx`: `activeNodePulse: null` in
+  `INITIAL_UI_STATE`; store gained the `setActiveNodePulse` action and now
+  also resets `flowPlayback`/`activeNodePulse` in `resetUiState()` (also
+  part of the RECONCILE fix below).
+- Tests: `src/utils/__tests__/flowPacket.test.ts` (new) — direction ordering
+  (incl. non-mutation of the input array), polyline length, point-at-progress
+  (single/multi-segment interpolation, clamping, 0/1-point edge cases), and
+  destination-item resolution (REQUEST/RESPONSE, no-item anchor, no anchors).
+  No component/DOM tests were added for `ConnectorPacket`/`Node`: this
+  project's `jest.config.js` uses `testEnvironment: "node"` (no jsdom, no
+  `SVGGeometryElement`) and has no existing RTL/jsdom test convention to
+  extend — per the task's own guidance, the DOM-dependent motion code is
+  guarded at the call site and the actual point-at-progress logic lives in
+  the pure, fully-tested `flowPacket.ts` util instead.
+
+Verification:
+- `npx tsc --noEmit`: passed, no errors.
+- `npm test`: 9 suites / 78 tests passed (14 new in `flowPacket.test.ts`).
+- `npm run lint`: only the known pre-existing issues (`import/no-cycle` in
+  `view.ts`/`viewItem.ts`, `no-console`/`no-alert` warnings in
+  `ExportImageDialog.tsx`/`useInitialDataManager.ts`). A scoped eslint run on
+  every file T4 touched (including the two review-fix files below) reports 0
+  problems.
+
+#### Review fixes included in this task
+1. **WARNING `R3-stale-playback-after-model-edit`**
+   (`src/hooks/useFlowPlayback.ts:37`): added a `RECONCILE` action to the
+   pure `flowPlaybackReducer` (`src/utils/flowPlayback.ts`) — no-op when no
+   flow is selected; resets to `{ flowId: null, status: 'IDLE', stepIndex: 0
+   }` when the selected flow was deleted; clamps `stepIndex` when the steps
+   array shrank; sets `status: 'IDLE'` (clamped index kept) when the step at
+   the current index no longer resolves to a real connector; otherwise a
+   true no-op (returns the same object reference, so no needless re-renders).
+   `useFlowPlayback.ts` gained a `useEffect` that gathers the facts
+   (`flowExists`, `connectorExists` at the clamped index, via a shared
+   `findConnector` helper factored out of the existing `currentConnector`
+   memo) and dispatches `actions.reconcile(...)` on every relevant model
+   change. `src/stores/uiStateStore.tsx` gained the `reconcile` action
+   (mirrors the existing `play`/`advance`/etc. pattern) and now resets
+   `flowPlayback` (and `activeNodePulse`) inside `resetUiState()`. Tests:
+   6 new `RECONCILE` cases in `src/utils/__tests__/flowPlayback.test.ts`
+   (no-op when unselected, flow deleted, steps emptied, stepIndex clamped,
+   connector missing, and a true no-op when nothing changed).
+2. **SUGGESTION `R3-missing-menuitem-key`**
+   (`src/components/ItemControls/ConnectorControls/ConnectorControls.tsx:113`):
+   added `key={direction}` to the mapped direction `MenuItem`s.
+
+#### Follow-ups from review (not in scope for T4)
+- Duplicate ids finding (not investigated as part of T3/T4).
+- Render coverage finding (not investigated as part of T3/T4).
+- `useFlow` throwing finding (not investigated as part of T3/T4).
+
+These were flagged by the RDD review over `aea77bd..d81ef09` but explicitly
+excluded from T4's scope; they still need triage before/alongside T5-T6.
+
+Commit: Conventional Commit
+`feat(simulation): animate flow packets along connectors` (includes both
+review fixes above — kept in the same commit rather than split out, since
+the fix and the feature share the same files (`uiStateStore.tsx`,
+`useFlowPlayback.ts`, `types/ui.ts`, `config.ts`) with interleaved hunks;
+splitting risked a broken intermediate commit for no real benefit here).
+
+### Review (RDD, over aea77bd..d81ef09)
+- Lineage: review-88b3c4817011ef57
+- Range: aea77bd..d81ef09
+- Risk: medium
+- Consent: granted
+- Lenses: 1 (reliability)
+- Outcome: approved, acknowledged/burned
+- Reviewed boundary: d81ef09
 
 ## Next step
-T4 (packet rendering along the connector path + node pulse on arrival).
+T5 (playback controls in UiOverlay — editor + readonly — and the flow step
+editor).

@@ -110,7 +110,7 @@ export const ConnectorControls = ({ id }: Props) => {
         >
           {Object.values(connectorDirectionOptions).map((direction) => {
             return (
-              <MenuItem value={direction}>
+              <MenuItem key={direction} value={direction}>
                 {DIRECTION_LABELS[direction]}
               </MenuItem>
             );

@@ -189,4 +189,121 @@ describe('flowPlaybackReducer() works correctly', () => {
       speed: 1
     });
   });
+
+  describe('RECONCILE reconciles playback with a changed model', () => {
+    test('is a no-op when no flow is selected', () => {
+      const next = flowPlaybackReducer(
+        idleState,
+        { type: 'RECONCILE', flowExists: false, connectorExists: false },
+        0
+      );
+
+      expect(next).toBe(idleState);
+    });
+
+    test('resets to IDLE/null when the selected flow was deleted', () => {
+      const playing: FlowPlayback = {
+        flowId: 'flow1',
+        status: 'PLAYING',
+        stepIndex: 2,
+        speed: 2
+      };
+
+      const next = flowPlaybackReducer(
+        playing,
+        { type: 'RECONCILE', flowExists: false, connectorExists: false },
+        0
+      );
+
+      expect(next).toStrictEqual({
+        flowId: null,
+        status: 'IDLE',
+        stepIndex: 0,
+        speed: 2
+      });
+    });
+
+    test('stops and resets to step 0 when the flow now has no steps', () => {
+      const playing: FlowPlayback = {
+        flowId: 'flow1',
+        status: 'PLAYING',
+        stepIndex: 2,
+        speed: 1
+      };
+
+      const next = flowPlaybackReducer(
+        playing,
+        { type: 'RECONCILE', flowExists: true, connectorExists: false },
+        0
+      );
+
+      expect(next).toStrictEqual({
+        flowId: 'flow1',
+        status: 'IDLE',
+        stepIndex: 0,
+        speed: 1
+      });
+    });
+
+    test('clamps stepIndex when the steps array has shrunk', () => {
+      const paused: FlowPlayback = {
+        flowId: 'flow1',
+        status: 'PAUSED',
+        stepIndex: 4,
+        speed: 1
+      };
+
+      const next = flowPlaybackReducer(
+        paused,
+        { type: 'RECONCILE', flowExists: true, connectorExists: true },
+        2
+      );
+
+      expect(next).toStrictEqual({
+        flowId: 'flow1',
+        status: 'PAUSED',
+        stepIndex: 1,
+        speed: 1
+      });
+    });
+
+    test("stops when the current step's connector no longer exists", () => {
+      const playing: FlowPlayback = {
+        flowId: 'flow1',
+        status: 'PLAYING',
+        stepIndex: 1,
+        speed: 1
+      };
+
+      const next = flowPlaybackReducer(
+        playing,
+        { type: 'RECONCILE', flowExists: true, connectorExists: false },
+        3
+      );
+
+      expect(next).toStrictEqual({
+        flowId: 'flow1',
+        status: 'IDLE',
+        stepIndex: 1,
+        speed: 1
+      });
+    });
+
+    test('is a no-op when nothing changed', () => {
+      const playing: FlowPlayback = {
+        flowId: 'flow1',
+        status: 'PLAYING',
+        stepIndex: 1,
+        speed: 1
+      };
+
+      const next = flowPlaybackReducer(
+        playing,
+        { type: 'RECONCILE', flowExists: true, connectorExists: true },
+        3
+      );
+
+      expect(next).toBe(playing);
+    });
+  });
 });
