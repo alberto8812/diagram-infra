@@ -32,7 +32,8 @@ import { useScene } from 'src/hooks/useScene';
 import {
   generateId,
   getConnectorEndpointLabel,
-  buildReturnPathSteps
+  getMissingReturnPathSteps,
+  findFlowStepConnector
 } from 'src/utils';
 
 interface Props {
@@ -60,6 +61,9 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
   });
   const items = useModelStore((state) => {
     return state.items;
+  });
+  const views = useModelStore((state) => {
+    return state.views;
   });
   const flowPlayback = useUiStateStore((state) => {
     return state.flowPlayback;
@@ -116,8 +120,33 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
   const [newLabel, setNewLabel] = useState('');
   const [newDurationMs, setNewDurationMs] = useState('');
 
+  // The "Add step" picker is scoped to the current view's connectors (see
+  // the helper text next to it below), so if the selected connector falls
+  // out of that list — the current view changed, or the connector was
+  // deleted — clear the selection instead of letting a stale id through
+  // (R3-editor-connectors-view-scoped).
+  useEffect(() => {
+    if (newConnectorId === '') return;
+
+    const stillExists = connectors.some((connector) => {
+      return connector.id === newConnectorId;
+    });
+
+    if (!stillExists) {
+      setNewConnectorId('');
+    }
+  }, [connectors, newConnectorId]);
+
   const handleAddStep = useCallback(() => {
     if (!selectedFlow || !newConnectorId) return;
+
+    // Defense in depth alongside the disabled button below and the clearing
+    // effect above: never create a step pointing at a connector that isn't
+    // actually in the current view's connector list.
+    const connectorExists = connectors.some((connector) => {
+      return connector.id === newConnectorId;
+    });
+    if (!connectorExists) return;
 
     const durationMs = Number(newDurationMs);
 
@@ -137,6 +166,7 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     newDirection,
     newLabel,
     newDurationMs,
+    connectors,
     createFlowStep
   ]);
 
@@ -146,10 +176,25 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     }).length;
   }, [selectedFlow]);
 
+  // Only the steps not already mirrored at the end of the flow (see
+  // getMissingReturnPathSteps) — used both to build the return path and to
+  // disable the button once there is nothing left to add
+  // (R3-return-path-not-idempotent).
+  const missingReturnPathSteps = useMemo(() => {
+    if (!selectedFlow) return [];
+
+    return getMissingReturnPathSteps(selectedFlow.steps, () => {
+      return '';
+    });
+  }, [selectedFlow]);
+
   const handleAddReturnPath = useCallback(() => {
     if (!selectedFlow) return;
 
-    const returnSteps = buildReturnPathSteps(selectedFlow.steps, generateId);
+    const returnSteps = getMissingReturnPathSteps(
+      selectedFlow.steps,
+      generateId
+    );
 
     returnSteps.forEach((step) => {
       createFlowStep(selectedFlow.id, step);
@@ -247,9 +292,11 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
 
                   <List dense disablePadding>
                     {selectedFlow.steps.map((step, index) => {
-                      const stepConnector = connectors.find((connector) => {
-                        return connector.id === step.connectorId;
-                      });
+                      // Resolved across all views (not just the current
+                      // one), since a step's connector may live in a view
+                      // other than whichever one is open right now
+                      // (R3-editor-connectors-view-scoped).
+                      const stepConnector = findFlowStepConnector(views, step);
                       const connectorLabel = stepConnector
                         ? getConnectorEndpointLabel(stepConnector, items)
                         : 'Missing connector';
@@ -315,7 +362,10 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
                     <Button
                       size="small"
                       startIcon={<ReturnPathIcon />}
-                      disabled={requestStepsCount === 0}
+                      disabled={
+                        requestStepsCount === 0 ||
+                        missingReturnPathSteps.length === 0
+                      }
                       onClick={handleAddReturnPath}
                     >
                       Add return path
@@ -330,6 +380,11 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
                     textTransform="uppercase"
                   >
                     Add step
+                  </Typography>
+
+                  <Typography variant="caption" color="text.secondary">
+                    Only connectors in the current view can be picked here —
+                    switch views to add a step for a connector elsewhere.
                   </Typography>
 
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>

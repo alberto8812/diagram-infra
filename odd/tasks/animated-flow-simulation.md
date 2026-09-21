@@ -514,6 +514,85 @@ Commit: `feat(simulation): add playback controls and flow step editor`
   and the React components stay thin wrappers over it plus the
   already-tested `useScene`/`useFlowPlayback` hooks and reducers.
 
+### Review 3 (RDD, over c311b8e..37c3eed)
+- Lineage: review-e1687a6f4ba49a3c
+- Range: c311b8e..37c3eed
+- Risk: medium
+- Consent: granted
+- Lenses: 1 (reliability)
+- Outcome: approved, acknowledged/burned
+- Reviewed boundary: 37c3eed
+
+### Review 3 fixes (done)
+Route: delegated direct (touched 3 non-trivial files: `ConnectorPacket.tsx`,
+`FlowEditorDialog.tsx`, `utils/flow.ts`, plus its test file).
+
+Changes:
+- `src/components/SceneLayers/Connectors/ConnectorPacket.tsx`: fixes
+  **WARNING R3-speed-lost-on-tween-rebuild**. Speed was previously applied
+  only by the effect keyed on `[speed]`; if the tween-creation effect
+  (`[points, baseDurationMs, reducedMotion]`) re-ran without a step change
+  remounting the component — e.g. `points` recomputed for the same step, or
+  `reducedMotion` flipping — the freshly created tween ran at the default
+  `timeScale` (1) until the next actual speed change. Added a `speedRef`
+  latest-ref (same pattern as the existing `onArriveRef`) and call
+  `tween.timeScale(speedRef.current)` right after creating the tween, so a
+  rebuilt tween always starts at the live speed.
+- `src/utils/flow.ts`: fixes **SUGGESTION R3-return-path-not-idempotent**.
+  Added `getMissingReturnPathSteps(steps, makeId)`, a pure function that
+  builds the same candidate return path as `buildReturnPathSteps` (kept
+  unchanged, still exported/tested as before) but compares it against the
+  steps already sitting after the last REQUEST step and only returns the
+  candidates without a matching counterpart there (matched by
+  `connectorId`/`direction`/`label`/`durationMs`, prefix-wise, in order) —
+  re-running it after the return path is already fully mirrored yields `[]`.
+- `src/components/FlowControls/FlowEditorDialog.tsx`: `handleAddReturnPath`
+  now calls `getMissingReturnPathSteps` instead of `buildReturnPathSteps`,
+  and a new `missingReturnPathSteps` memo disables the "Add return path"
+  button once nothing would be added (in addition to the existing
+  no-REQUEST-steps guard) — completes the idempotency fix above.
+  Also fixes **SUGGESTION R3-editor-connectors-view-scoped**: the steps
+  list now resolves each step's connector with `findFlowStepConnector(views,
+  step)` across all views (the same shared util `useFlowPlayback`/
+  `FlowPlaybackReconciler` use), instead of `useScene().connectors`, which
+  only has the current view's connectors and mislabelled/"Missing
+  connector"-flagged steps for connectors that live in another view. The
+  "Add step" picker deliberately stays scoped to the current view's
+  connectors (creating a view-scoped connector element), now with a caption
+  saying so. A new effect clears `newConnectorId` whenever it falls out of
+  that current-view connector list (view switched, or the connector was
+  deleted), and `handleAddStep` re-checks the connector still exists right
+  before creating the step — so a step is never created pointing at a
+  connector that isn't actually there.
+- Tests: `src/utils/__tests__/flow.test.ts` — added
+  `getMissingReturnPathSteps` describe block: full path when none exists yet
+  (matches `buildReturnPathSteps`), empty result once already fully
+  mirrored (the idempotency case), only the still-missing steps when
+  partially mirrored, and an empty array with no REQUEST steps.
+
+Verification:
+- `npx tsc --noEmit`: passed, no errors.
+- `npm test`: 11 suites / 99 tests passed (4 new in `flow.test.ts`).
+- `npm run lint`: one `prettier/prettier` formatting error introduced by the
+  first pass on `FlowEditorDialog.tsx` was fixed with a scoped
+  `eslint --fix` on just that file, then `tsc --noEmit` and `npm test`
+  re-run clean to confirm no behavior changed. Final `npm run lint` reports
+  only the known pre-existing issues (`import/no-cycle` in
+  `view.ts`/`viewItem.ts`, `no-console`/`no-alert` warnings in
+  `ExportImageDialog.tsx`/`useInitialDataManager.ts`).
+
+Commit: `fix(simulation): preserve speed on tween rebuild and harden flow
+editor`.
+
+### Follow-ups (still open after Review 3)
+- Duplicate ids finding (still unvalidated — flagged since the
+  `aea77bd..d81ef09` review, carried through T4-T6 and Review 3).
+- No render/DOM tests for `ConnectorPacket`/`Node`/`FlowPlaybackBar`/
+  `FlowEditorDialog`/`IsometricBlockIcon`: same reasoning throughout this
+  feature — `jest.config.js` uses `testEnvironment: "node"` (no jsdom) and
+  this project has no existing RTL/jsdom convention to extend, so the pure
+  logic each of these components renders is fully tested instead.
+
 ### T6 Isometric volume for flat icons (done)
 Route: delegated direct (touched 7 non-trivial files: schema, types, config,
 hook, two components, plus a new pure geometry util/tests). A concurrent
@@ -626,5 +705,18 @@ for brand-colored logos, or should it derive from
 `customVars.customPalette.diagramBg` instead for closer visual cohesion
 with the canvas background?
 
+## Open product questions (user validation) — from T6
+- Is `BLOCK` the right default `iconStyle` (vs. opt-in `FLAT`-by-default
+  with a per-node upgrade to `BLOCK`)?
+- Is `ICON_BLOCK_EXTRUDE_HEIGHT` — 35% of the tile height — visually right?
+- Is `ICON_BLOCK_BASE_COLOR` (`#e7ecf5`) the right neutral base for
+  brand-colored logos, or should it derive from
+  `customVars.customPalette.diagramBg` for closer cohesion with the canvas
+  background instead?
+
 ## Next step
-User validation in browser (`npm start`), then merge decision.
+User validation in browser (`npm start`), then merge decision. Review 3's
+fixes (speed-on-rebuild, idempotent return path, cross-view connector
+labels) are done and verified; the two remaining follow-ups (duplicate ids
+unvalidated, no DOM/render tests) and the three open product questions above
+still need triage/decisions before merge.

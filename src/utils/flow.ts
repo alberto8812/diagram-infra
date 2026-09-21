@@ -80,3 +80,54 @@ export const buildReturnPathSteps = (
       };
     });
 };
+
+// Two return-path steps are "the same" when everything but their `id`
+// matches — a fresh id is generated per build, so `id` is deliberately
+// excluded from the comparison.
+const isSameStepContent = (a: FlowStep, b: FlowStep): boolean => {
+  return (
+    a.connectorId === b.connectorId &&
+    a.direction === b.direction &&
+    a.label === b.label &&
+    a.durationMs === b.durationMs
+  );
+};
+
+// Idempotent version of "add return path": `buildReturnPathSteps` always
+// returns a full copy of the mirrored RESPONSE steps, so calling it again
+// after they were already appended would duplicate them
+// (R3-return-path-not-idempotent). This compares the full candidate list
+// against the steps that already sit after the last REQUEST step (i.e. the
+// existing return path, if any) and only returns the candidates that don't
+// already have a matching counterpart there, in order — so re-running it
+// once the return path is already fully mirrored yields an empty array, and
+// re-running it after a partial/edited mirror only fills in what's missing.
+export const getMissingReturnPathSteps = (
+  steps: FlowStep[],
+  makeId: () => string
+): FlowStep[] => {
+  const candidates = buildReturnPathSteps(steps, () => {
+    return '';
+  });
+
+  if (candidates.length === 0) return [];
+
+  const lastRequestIndex = steps.reduce((lastIndex, step, index) => {
+    return step.direction === 'REQUEST' ? index : lastIndex;
+  }, -1);
+
+  const existingTail = steps.slice(lastRequestIndex + 1);
+
+  let matchCount = 0;
+  while (
+    matchCount < candidates.length &&
+    matchCount < existingTail.length &&
+    isSameStepContent(candidates[matchCount], existingTail[matchCount])
+  ) {
+    matchCount += 1;
+  }
+
+  return candidates.slice(matchCount).map((step) => {
+    return { ...step, id: makeId() };
+  });
+};

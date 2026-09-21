@@ -2,7 +2,8 @@ import { Connector, FlowStep, ModelItem, View } from 'src/types';
 import {
   findFlowStepConnector,
   getConnectorEndpointLabel,
-  buildReturnPathSteps
+  buildReturnPathSteps,
+  getMissingReturnPathSteps
 } from '../flow';
 
 const connector = (id: string, anchors: Connector['anchors']): Connector => {
@@ -130,5 +131,58 @@ describe('buildReturnPathSteps() works correctly', () => {
         durationMs: 500
       }
     ]);
+  });
+});
+
+describe('getMissingReturnPathSteps() works correctly', () => {
+  const makeCounter = () => {
+    let n = 0;
+    return () => {
+      n += 1;
+      return `generated-${n}`;
+    };
+  };
+
+  test('returns the full return path when none exists yet', () => {
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 's2', connectorId: 'conn2', direction: 'REQUEST', label: 'call' }
+    ];
+
+    expect(getMissingReturnPathSteps(steps, makeCounter())).toStrictEqual(
+      buildReturnPathSteps(steps, makeCounter())
+    );
+  });
+
+  test('returns nothing once the return path is already fully mirrored (idempotent)', () => {
+    const requestSteps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 's2', connectorId: 'conn2', direction: 'REQUEST', label: 'call' }
+    ];
+    const firstReturnPath = buildReturnPathSteps(requestSteps, makeCounter());
+    const steps = [...requestSteps, ...firstReturnPath];
+
+    expect(getMissingReturnPathSteps(steps, makeCounter())).toStrictEqual([]);
+  });
+
+  test('adds only the still-missing steps when the return path is partial', () => {
+    const requestSteps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 's2', connectorId: 'conn2', direction: 'REQUEST' }
+    ];
+    // Only the first mirrored step (for conn2, mirrored first since steps
+    // are reversed) was added so far.
+    const steps: FlowStep[] = [
+      ...requestSteps,
+      { id: 's3', connectorId: 'conn2', direction: 'RESPONSE' }
+    ];
+
+    expect(getMissingReturnPathSteps(steps, makeCounter())).toStrictEqual([
+      { id: 'generated-1', connectorId: 'conn1', direction: 'RESPONSE' }
+    ]);
+  });
+
+  test('returns an empty array when there are no REQUEST steps', () => {
+    expect(getMissingReturnPathSteps([], makeCounter())).toStrictEqual([]);
   });
 });

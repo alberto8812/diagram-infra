@@ -58,6 +58,22 @@ export const ConnectorPacket = ({
     onArriveRef.current = onArrive;
   }, [onArrive]);
 
+  // Latest-ref for the same reason as `onArriveRef` above: the
+  // tween-creation effect below only re-runs per step (its deps are
+  // [points, baseDurationMs, reducedMotion]), but `speed` can change without
+  // those deps changing — e.g. the tween-creation effect itself re-running
+  // for an unrelated reason (points recomputed for the same step,
+  // reducedMotion flipping) would otherwise create the new tween at the
+  // default timeScale (1) until the next speed change fires the separate
+  // speed effect below (R3-speed-lost-on-tween-rebuild). Reading the latest
+  // speed here and applying it right after creating the tween keeps a
+  // rebuilt tween in sync with the live speed even when speed itself didn't
+  // change.
+  const speedRef = useRef(speed);
+  useEffect(() => {
+    speedRef.current = speed;
+  }, [speed]);
+
   const pointsString = useMemo(() => {
     return points
       .map((point) => {
@@ -144,6 +160,7 @@ export const ConnectorPacket = ({
     });
 
     tweenRef.current = tween;
+    tween.timeScale(speedRef.current > 0 ? speedRef.current : 1);
 
     return () => {
       tween.kill();
