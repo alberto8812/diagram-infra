@@ -1,10 +1,23 @@
 import React from 'react';
-import { Slider, Box, TextField } from '@mui/material';
-import { ModelItem, ViewItem } from 'src/types';
+import {
+  Slider,
+  Box,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup
+} from '@mui/material';
+import { ModelItem, ViewItem, iconStyleOptions, IconStyle } from 'src/types';
 import { MarkdownEditor } from 'src/components/MarkdownEditor/MarkdownEditor';
 import { useModelItem } from 'src/hooks/useModelItem';
+import { useIcon } from 'src/hooks/useIcon';
+import { NODE_ICON_STYLE_DEFAULT } from 'src/config';
 import { DeleteButton } from '../../components/DeleteButton';
 import { Section } from '../../components/Section';
+
+const ICON_STYLE_LABELS: Record<IconStyle, string> = {
+  BLOCK: 'Isometric block',
+  FLAT: 'Flat'
+};
 
 export type NodeUpdates = {
   model: Partial<ModelItem>;
@@ -25,6 +38,7 @@ export const NodeSettings = ({
   onDeleted
 }: Props) => {
   const modelItem = useModelItem(node.id);
+  const { icon } = useIcon(modelItem.icon);
 
   return (
     <>
@@ -59,6 +73,27 @@ export const NodeSettings = ({
               onViewItemUpdated({ labelHeight });
             }}
           />
+        </Section>
+      )}
+      {!icon.isIsometric && (
+        <Section title="Icon style">
+          <ToggleButtonGroup
+            exclusive
+            value={modelItem.iconStyle ?? NODE_ICON_STYLE_DEFAULT}
+            onChange={(e, newStyle: IconStyle | null) => {
+              if (newStyle === null || newStyle === modelItem.iconStyle) return;
+
+              onModelItemUpdated({ iconStyle: newStyle });
+            }}
+          >
+            {iconStyleOptions.map((style) => {
+              return (
+                <ToggleButton key={style} value={style}>
+                  {ICON_STYLE_LABELS[style]}
+                </ToggleButton>
+              );
+            })}
+          </ToggleButtonGroup>
         </Section>
       )}
       <Section>

@@ -39,7 +39,7 @@ isometric icons with volume inside the current 2.5D engine.
 - [x] T3 Playback engine: uiStateStore playback state (play/pause/step/speed/current step)
 - [x] T4 Packet rendering along connector path + node pulse on arrival
 - [x] T5 Playback controls in UiOverlay (editor + readonly) and flow step editor
-- [ ] T6 Isometric volume for flat icons: wrap non-isometric icons (e.g. Simple
+- [x] T6 Isometric volume for flat icons: wrap non-isometric icons (e.g. Simple
       Icons CI/CD set) in an extruded isometric block (shaded side faces, logo
       projected on top); isopack icons stay unchanged
 
@@ -514,5 +514,117 @@ Commit: `feat(simulation): add playback controls and flow step editor`
   and the React components stay thin wrappers over it plus the
   already-tested `useScene`/`useFlowPlayback` hooks and reducers.
 
+### T6 Isometric volume for flat icons (done)
+Route: delegated direct (touched 7 non-trivial files: schema, types, config,
+hook, two components, plus a new pure geometry util/tests). A concurrent
+automated review over `c311b8e..37c3eed` was running while this task
+executed; none of the files it covers (`SceneLayers/Connectors/*`,
+`FlowControls/*`, `FlowPlaybackReconciler/*`, `useFlowPlayback.ts`,
+`utils/flow.ts`, `Isoflow.tsx`, `UiOverlay.tsx`, `types/ui.ts`,
+`examples/initialData.ts`) were touched.
+
+Projection choice: the logo stays on the top face, reusing — unchanged —
+the exact flat-icon isometric transform `NonIsometricIcon` already applies
+(`getIsoProjectionCss()`, the same matrix `getIsoMatrix()` in
+`src/utils/renderer.ts` uses to project grid tiles), just raised onto the
+block's lid by its extrude height. This was picked over clipping the
+`<image>` into the top polygon: it keeps the already-working,
+already-export-safe `<img>` markup byte-identical to before (same src,
+same width, same transform formula — only its `top` offset changes), so
+`ExportImageDialog`'s dom-to-image PNG export needed no changes at all. The
+tradeoff, called out in the component's own comment, is that the logo
+renders as the same CSS-skewed parallelogram approximation
+`NonIsometricIcon` already used, not a pixel-exact fit to the true tile
+diamond the block's own faces are drawn with — the existing accepted
+approximation, just reused rather than replaced.
+
+Changes:
+- `src/utils/isometricBlock.ts` (new, pure, React/DOM-free):
+  `getIsometricCuboidFaces(footprint, extrudeHeight)` returns the block's
+  three visible face polygons (`top`/`left`/`right`) in the same
+  anchor-relative coordinate space `Node.tsx` already positions icons in
+  (origin = the tile's near/bottom vertex, screen "up" = negative y — see
+  `getTilePosition({ origin: 'BOTTOM' })` in `src/utils/renderer.ts`), so
+  no translation math is needed where it's consumed. `toSvgPoints(points)`
+  formats a `Coords[]` as an SVG `points` string. Exported via
+  `src/utils/index.ts`.
+- `src/components/SceneLayers/Nodes/Node/IconTypes/IsometricBlockIcon.tsx`
+  (new): renders the block as three `<polygon>`s inside a raw-`viewBox`
+  `<Svg>` (left/right faces shaded via `getColorVariant(..., 'dark',
+  {grade})`, from `ICON_BLOCK_BASE_COLOR`), a small `<ellipse>` ground
+  shadow at the near vertex, and the existing flat-icon `<img>` transform
+  (see projection choice above) positioned on the lid.
+- `src/hooks/useIcon.tsx`: takes an optional second `iconStyle?: IconStyle`
+  param. For a non-isometric icon (`!icon.isIsometric`, i.e. `false` or
+  unset — same condition the hook already branched on), resolves
+  `iconStyle ?? NODE_ICON_STYLE_DEFAULT` and renders `IsometricBlockIcon`
+  for `'BLOCK'`, `NonIsometricIcon` for `'FLAT'`. Isometric icons are
+  unaffected. `DragAndDrop.tsx`/`NodeControls.tsx` call `useIcon` with only
+  one argument (icon preview only, no component style relevant there) and
+  needed no changes — the new param is optional.
+- `src/schemas/modelItems.ts`: added `iconStyleOptions = ['FLAT', 'BLOCK']
+  as const` and `iconStyle: z.enum(iconStyleOptions).optional()` on
+  `modelItemSchema` — optional, so `diagrams/infra.json` and every existing
+  diagram still validates and loads unchanged (falls back to the config
+  default at render time, not at parse time).
+- `src/types/model.ts`: re-exported `iconStyleOptions` and added
+  `IconStyle = (typeof iconStyleOptions)[number]` (the correct
+  `(typeof X)[number]` pattern, matching `FlowStepDirection` from T2, not
+  the older `keyof typeof` one `ConnectorStyle`/`ConnectorDirection` use).
+- `src/config.ts`: added `NODE_ICON_STYLE_DEFAULT: IconStyle = 'BLOCK'`
+  (global opt-out point — flip to `'FLAT'` to restore the pre-T6 default
+  for every diagram at once), `ICON_BLOCK_EXTRUDE_HEIGHT` (`= round(
+  PROJECTED_TILE_SIZE.height * 0.35)`, so it scales if the tile size config
+  ever changes), and `ICON_BLOCK_BASE_COLOR`.
+- `src/components/ItemControls/NodeControls/NodeSettings/NodeSettings.tsx`:
+  added an "Icon style" section (a `ToggleButtonGroup`, `iconStyleOptions`
+  mapped to labels), shown only when the selected node's icon is
+  non-isometric — the per-node opt-out. Reads the icon via the same
+  `useIcon()` hook (single-arg call, `{ icon }` only) already used
+  elsewhere in this file's siblings.
+- `src/components/SceneLayers/Nodes/Node/Node.tsx`: `useIcon(modelItem.icon)`
+  -> `useIcon(modelItem.icon, modelItem.iconStyle)`. The T4 pulse glow
+  needed no changes: it's sized/positioned off `PROJECTED_TILE_SIZE` at the
+  node's floor anchor, the same anchor the block also stands on, so it
+  still renders correctly around/under the block.
+- `src/utils/index.ts`: exports `./isometricBlock`.
+- Tests: `src/utils/__tests__/isometricBlock.test.ts` (new) —
+  `getIsometricCuboidFaces`: the near/floor vertex sits at the anchor
+  origin, the top/left/right face polygons compute correctly for a sample
+  footprint+height, and a zero `extrudeHeight` collapses the lid onto the
+  floor diamond; `toSvgPoints`: formatting and the empty-input case. No
+  component/DOM test for `IsometricBlockIcon` itself — same reasoning as
+  T4/T5 (`jest.config.js` uses `testEnvironment: "node"`, no jsdom, no
+  existing RTL convention in this project): the geometry is pure and fully
+  tested, and the component is a thin render of it plus the
+  already-working `NonIsometricIcon` image-transform code path.
+
+Verification:
+- `npx tsc --noEmit`: passed, no errors.
+- `npm test`: 11 suites / 95 tests passed (7 new in `isometricBlock.test.ts`).
+- `npm run lint`: two lint errors introduced by this task's first pass
+  (`arrow-body-style` in `isometricBlock.ts`, a `prettier/prettier`
+  formatting error in `NodeSettings.tsx`) were both fixed with a scoped
+  `eslint --fix` on just those two files, then `tsc --noEmit` and
+  `npm test` were re-run clean to confirm the fix changed nothing
+  behaviorally. Final `npm run lint` reports only the known pre-existing
+  issues (`import/no-cycle` in `view.ts`/`viewItem.ts`, `no-console`/
+  `no-alert` warnings in `ExportImageDialog.tsx`/`useInitialDataManager.ts`).
+
+Deviations from the task brief: no isopack-icon or `diagrams/infra.json`
+changes (none needed — isometric icons already skip the new code path
+entirely); no docs update to
+`docs/pages/docs/api/initialData.mdx` (out of the authorized scope for
+this task, left for a follow-up if the model-level `iconStyle` field is
+considered worth documenting alongside `isIsometric`).
+
+Open questions for user validation: is `BLOCK` the right *default* (vs.
+opt-in `FLAT`-by-default with a per-node upgrade)? Is
+`ICON_BLOCK_EXTRUDE_HEIGHT`'s proportion (35% of tile height) visually
+right, and is `ICON_BLOCK_BASE_COLOR` (`#e7ecf5`) the right neutral base
+for brand-colored logos, or should it derive from
+`customVars.customPalette.diagramBg` instead for closer visual cohesion
+with the canvas background?
+
 ## Next step
-T6 (isometric volume for flat icons).
+User validation in browser (`npm start`), then merge decision.

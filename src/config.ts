@@ -9,7 +9,8 @@ import {
   View,
   Rectangle,
   Colors,
-  FlowPlayback
+  FlowPlayback,
+  IconStyle
 } from 'src/types';
 import { CoordsUtils } from 'src/utils';
 import { customVars } from './styles/theme';
@@ -133,3 +134,12 @@ export const DEFAULT_ICON: Icon = {
 export const DEFAULT_LABEL_HEIGHT = 20;
 export const PROJECT_BOUNDING_BOX_PADDING = 3;
 export const MARKDOWN_EMPTY_VALUE = '<p><br></p>';
+
+// T6: non-isometric (flat) icons render on an extruded isometric block by
+// default (opt-out via a model item's own `iconStyle`, see
+// src/schemas/modelItems.ts). Isometric icons are unaffected.
+export const NODE_ICON_STYLE_DEFAULT: IconStyle = 'BLOCK';
+export const ICON_BLOCK_EXTRUDE_HEIGHT = Math.round(
+  PROJECTED_TILE_SIZE.height * 0.35
+);
+export const ICON_BLOCK_BASE_COLOR = '#e7ecf5';

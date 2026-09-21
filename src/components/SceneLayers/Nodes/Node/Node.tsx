@@ -31,7 +31,7 @@ interface Props {
 export const Node = ({ node, order }: Props) => {
   const theme = useTheme();
   const modelItem = useModelItem(node.id);
-  const { iconComponent } = useIcon(modelItem.icon);
+  const { iconComponent } = useIcon(modelItem.icon, modelItem.iconStyle);
 
   const activeNodePulse = useUiStateStore((state) => {
     return state.activeNodePulse;
