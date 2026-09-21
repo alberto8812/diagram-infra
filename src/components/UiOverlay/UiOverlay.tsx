@@ -15,6 +15,8 @@ import { useResizeObserver } from 'src/hooks/useResizeObserver';
 import { ContextMenuManager } from 'src/components/ContextMenu/ContextMenuManager';
 import { useScene } from 'src/hooks/useScene';
 import { useModelStore } from 'src/stores/modelStore';
+import { FlowPlaybackBar } from 'src/components/FlowControls/FlowPlaybackBar';
+import { FlowEditorDialog } from 'src/components/FlowControls/FlowEditorDialog';
 import { ExportImageDialog } from '../ExportImageDialog/ExportImageDialog';
 
 const ToolsEnum = {
@@ -22,7 +24,8 @@ const ToolsEnum = {
   ZOOM_CONTROLS: 'ZOOM_CONTROLS',
   TOOL_MENU: 'TOOL_MENU',
   ITEM_CONTROLS: 'ITEM_CONTROLS',
-  VIEW_TITLE: 'VIEW_TITLE'
+  VIEW_TITLE: 'VIEW_TITLE',
+  FLOW_CONTROLS: 'FLOW_CONTROLS'
 } as const;
 
 interface EditorModeMapping {
@@ -35,9 +38,14 @@ const EDITOR_MODE_MAPPING: EditorModeMapping = {
     'ZOOM_CONTROLS',
     'TOOL_MENU',
     'MAIN_MENU',
-    'VIEW_TITLE'
+    'VIEW_TITLE',
+    'FLOW_CONTROLS'
   ],
-  [EditorModeEnum.EXPLORABLE_READONLY]: ['ZOOM_CONTROLS', 'VIEW_TITLE'],
+  [EditorModeEnum.EXPLORABLE_READONLY]: [
+    'ZOOM_CONTROLS',
+    'VIEW_TITLE',
+    'FLOW_CONTROLS'
+  ],
   [EditorModeEnum.NON_INTERACTIVE]: []
 };
 
@@ -202,6 +210,21 @@ export const UiOverlay = () => {
           </Box>
         )}
 
+        {availableTools.includes('FLOW_CONTROLS') && (
+          <Box
+            sx={{
+              position: 'absolute',
+              transform: 'translateX(-50%)'
+            }}
+            style={{
+              left: rendererSize.width / 2,
+              top: appPadding.y
+            }}
+          >
+            <FlowPlaybackBar />
+          </Box>
+        )}
+
         {enableDebugTools && (
           <UiElement
             sx={{
@@ -228,6 +251,14 @@ export const UiOverlay = () => {
 
       {dialog === 'EXPORT_IMAGE' && (
         <ExportImageDialog
+          onClose={() => {
+            return uiStateActions.setDialog(null);
+          }}
+        />
+      )}
+
+      {dialog === 'FLOW_EDITOR' && availableTools.includes('FLOW_CONTROLS') && (
+        <FlowEditorDialog
           onClose={() => {
             return uiStateActions.setDialog(null);
           }}

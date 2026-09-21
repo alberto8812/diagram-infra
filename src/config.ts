@@ -97,6 +97,9 @@ export const INITIAL_FLOW_PLAYBACK: FlowPlayback = {
   speed: 1
 };
 
+// Speed multipliers offered by the playback controls (FlowPlaybackBar).
+export const FLOW_PLAYBACK_SPEED_OPTIONS = [0.5, 1, 2] as const;
+
 export const INITIAL_UI_STATE = {
   zoom: 1,
   scroll: {

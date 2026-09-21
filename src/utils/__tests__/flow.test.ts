@@ -1,5 +1,9 @@
-import { Connector, FlowStep, View } from 'src/types';
-import { findFlowStepConnector } from '../flow';
+import { Connector, FlowStep, ModelItem, View } from 'src/types';
+import {
+  findFlowStepConnector,
+  getConnectorEndpointLabel,
+  buildReturnPathSteps
+} from '../flow';
 
 const connector = (id: string, anchors: Connector['anchors']): Connector => {
   return { id, anchors };
@@ -33,5 +37,98 @@ describe('findFlowStepConnector() works correctly', () => {
     };
 
     expect(findFlowStepConnector(views, step)).toBeUndefined();
+  });
+});
+
+describe('getConnectorEndpointLabel() works correctly', () => {
+  const items: Pick<ModelItem, 'id' | 'name'>[] = [
+    { id: 'item1', name: 'Client' },
+    { id: 'item2', name: 'Server' }
+  ];
+
+  test('labels a connector by its endpoint item names', () => {
+    const conn = connector('conn1', [
+      { id: 'a1', ref: { item: 'item1' } },
+      { id: 'a2', ref: { item: 'item2' } }
+    ]);
+
+    expect(getConnectorEndpointLabel(conn, items)).toBe('Client -> Server');
+  });
+
+  test('falls back to "?" for a tile anchor or an unresolved item', () => {
+    const conn = connector('conn1', [
+      { id: 'a1', ref: { tile: { x: 0, y: 0 } } },
+      { id: 'a2', ref: { item: 'missing' } }
+    ]);
+
+    expect(getConnectorEndpointLabel(conn, items)).toBe('? -> ?');
+  });
+
+  test('returns a fallback label when the connector has no anchors', () => {
+    expect(getConnectorEndpointLabel(connector('conn1', []), items)).toBe(
+      'Unnamed connector'
+    );
+  });
+});
+
+describe('buildReturnPathSteps() works correctly', () => {
+  const makeCounter = () => {
+    let n = 0;
+    return () => {
+      n += 1;
+      return `generated-${n}`;
+    };
+  };
+
+  test('appends a RESPONSE step per REQUEST step, in reverse order', () => {
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 's2', connectorId: 'conn2', direction: 'REQUEST', label: 'call' }
+    ];
+
+    expect(buildReturnPathSteps(steps, makeCounter())).toStrictEqual([
+      {
+        id: 'generated-1',
+        connectorId: 'conn2',
+        direction: 'RESPONSE',
+        label: 'call'
+      },
+      { id: 'generated-2', connectorId: 'conn1', direction: 'RESPONSE' }
+    ]);
+  });
+
+  test('ignores existing RESPONSE steps', () => {
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 's2', connectorId: 'conn1', direction: 'RESPONSE' }
+    ];
+
+    expect(buildReturnPathSteps(steps, makeCounter())).toStrictEqual([
+      { id: 'generated-1', connectorId: 'conn1', direction: 'RESPONSE' }
+    ]);
+  });
+
+  test('returns an empty array when there are no REQUEST steps', () => {
+    expect(buildReturnPathSteps([], makeCounter())).toStrictEqual([]);
+  });
+
+  test('carries over durationMs when present', () => {
+    const steps: FlowStep[] = [
+      {
+        id: 's1',
+        connectorId: 'conn1',
+        direction: 'REQUEST',
+        durationMs: 500
+      }
+    ];
+
+    expect(buildReturnPathSteps(steps, makeCounter())).toStrictEqual([
+      {
+        id: 'generated-1',
+        connectorId: 'conn1',
+        direction: 'RESPONSE',
+        durationMs: 500
+      }
+    ]);
   });
 });
