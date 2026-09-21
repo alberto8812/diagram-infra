@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTheme, Box } from '@mui/material';
+import { keyframes } from '@emotion/react';
 import { UNPROJECTED_TILE_SIZE } from 'src/config';
 import {
   getAnchorTile,
@@ -88,6 +89,38 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
     }
   }, [connector.style, connectorWidthPx]);
 
+  // Flow direction follows the order of connector.path.tiles (start -> end).
+  // A negative stroke-dashoffset animates the dash pattern in that same
+  // direction; a positive one animates it in reverse.
+  const flow = useMemo(() => {
+    const dashLength = connectorWidthPx * 1.2;
+    const gapLength = connectorWidthPx * 2.4;
+    const period = dashLength + gapLength;
+
+    return {
+      dashArray: `${dashLength}, ${gapLength}`,
+      forward: keyframes`
+        from { stroke-dashoffset: 0; }
+        to { stroke-dashoffset: ${-period}; }
+      `,
+      reverse: keyframes`
+        from { stroke-dashoffset: 0; }
+        to { stroke-dashoffset: ${period}; }
+      `
+    };
+  }, [connectorWidthPx]);
+
+  const flowOverlays = useMemo(() => {
+    if (!connector.animated) return [];
+
+    if (connector.direction === 'REVERSE') return ['REVERSE' as const];
+    if (connector.direction === 'BOTH') {
+      return ['FORWARD' as const, 'REVERSE' as const];
+    }
+
+    return ['FORWARD' as const];
+  }, [connector.animated, connector.direction]);
+
   return (
     <Box style={css}>
       <Svg
@@ -118,6 +151,37 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
           strokeDasharray={strokeDashArray}
           fill="none"
         />
+
+        {flowOverlays.map((direction) => {
+          const isReverse = direction === 'REVERSE';
+          // When both directions are shown, the reverse overlay is the
+          // second one: dim it and phase-shift it so both streams read.
+          const isSecondary = flowOverlays.length > 1 && isReverse;
+
+          return (
+            <Box
+              key={direction}
+              component="polyline"
+              points={pathString}
+              stroke={theme.palette.common.white}
+              strokeOpacity={isSecondary ? 0.35 : 0.85}
+              strokeWidth={connectorWidthPx}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={flow.dashArray}
+              fill="none"
+              sx={{
+                animation: `${
+                  isReverse ? flow.reverse : flow.forward
+                } 1.4s linear infinite`,
+                animationDelay: isSecondary ? '-0.7s' : '0s',
+                '@media (prefers-reduced-motion: reduce)': {
+                  animation: 'none'
+                }
+              }}
+            />
+          );
+        })}
 
         {anchorPositions.map((anchor) => {
           return (

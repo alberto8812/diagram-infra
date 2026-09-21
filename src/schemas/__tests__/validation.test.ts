@@ -2,6 +2,7 @@ import { produce } from 'immer';
 import { Connector, ViewItem } from 'src/types';
 import { model as modelFixture } from '../../fixtures/model';
 import { validateModel } from '../validation';
+import { connectorSchema } from '../connector';
 
 describe('Model validation works correctly', () => {
   test('Model fixture is valid', () => {
@@ -113,5 +114,48 @@ describe('Model validation works correctly', () => {
     const issues = validateModel(model);
 
     expect(issues[0].type).toStrictEqual('INVALID_RECTANGLE_COLOR_REF');
+  });
+
+  test('A connector with animated and direction set is valid', () => {
+    const result = connectorSchema.safeParse({
+      id: 'connectorWithFlow',
+      color: 'color1',
+      animated: true,
+      direction: 'REVERSE',
+      anchors: [
+        { id: 'testAnch1', ref: { item: 'node1' } },
+        { id: 'testAnch2', ref: { item: 'node2' } }
+      ]
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test('A connector with an invalid direction fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'connectorWithInvalidDirection',
+      color: 'color1',
+      animated: true,
+      direction: 'SIDEWAYS',
+      anchors: [
+        { id: 'testAnch1', ref: { item: 'node1' } },
+        { id: 'testAnch2', ref: { item: 'node2' } }
+      ]
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector without animated or direction still validates', () => {
+    const result = connectorSchema.safeParse({
+      id: 'connectorWithoutFlow',
+      color: 'color1',
+      anchors: [
+        { id: 'testAnch1', ref: { item: 'node1' } },
+        { id: 'testAnch2', ref: { item: 'node2' } }
+      ]
+    });
+
+    expect(result.success).toBe(true);
   });
 });

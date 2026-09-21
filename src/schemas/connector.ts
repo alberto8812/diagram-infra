@@ -3,6 +3,12 @@ import { coords, id, constrainedStrings } from './common';
 
 export const connectorStyleOptions = ['SOLID', 'DOTTED', 'DASHED'] as const;
 
+export const connectorDirectionOptions = [
+  'FORWARD',
+  'REVERSE',
+  'BOTH'
+] as const;
+
 export const anchorSchema = z.object({
   id,
   ref: z
@@ -20,5 +26,7 @@ export const connectorSchema = z.object({
   color: id.optional(),
   width: z.number().optional(),
   style: z.enum(connectorStyleOptions).optional(),
+  animated: z.boolean().optional(),
+  direction: z.enum(connectorDirectionOptions).optional(),
   anchors: z.array(anchorSchema)
 });
