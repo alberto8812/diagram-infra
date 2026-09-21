@@ -7,3 +7,4 @@ export * from './exportOptions';
 export * from './model';
 export * from './flowPlayback';
 export * from './flowPacket';
+export * from './flow';

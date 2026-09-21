@@ -136,21 +136,60 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
   } = useFlowPlayback();
   const reducedMotion = useReducedMotion();
 
-  const packet = useMemo(() => {
-    if (flowPlayback.status === 'IDLE') return null;
-    if (!currentStep || !currentConnector) return null;
-    if (currentConnector.id !== connector.id) return null;
+  // A text key for `connector.path.tiles` (rather than the array itself) so
+  // `packetPoints` below only recomputes when the path's actual x/y values
+  // change. `connector` (from `useConnector`) gets a brand-new object/array
+  // reference on *every* model change, even ones unrelated to this
+  // connector, so keying off the array reference would recreate `points` -
+  // and, via ConnectorPacket's tween-creation effect - restart the running
+  // tween on unrelated edits too.
+  const tilesKey = useMemo(() => {
+    return connector.path.tiles
+      .map((tile) => {
+        return `${tile.x},${tile.y}`;
+      })
+      .join('|');
+  }, [connector.path.tiles]);
+
+  // Stable across playback status/speed changes and unrelated model edits -
+  // this is what lets ConnectorPacket's tween survive PAUSE/PLAY and speed
+  // changes instead of restarting (see the finding this fixes:
+  // R3-pause-restarts-packet-tween). Only tiles/direction/offset (the
+  // connector's own geometry) can change its identity.
+  const packetPoints = useMemo(() => {
+    if (
+      !currentStep ||
+      !currentConnector ||
+      currentConnector.id !== connector.id
+    ) {
+      return null;
+    }
 
     const tiles = getPacketPathPoints(
       connector.path.tiles,
       currentStep.direction
     );
-    const packetPoints = tiles.map((tile) => {
+
+    return tiles.map((tile) => {
       return {
         x: tile.x * UNPROJECTED_TILE_SIZE + drawOffset.x,
         y: tile.y * UNPROJECTED_TILE_SIZE + drawOffset.y
       };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    tilesKey,
+    currentStep?.id,
+    currentStep?.direction,
+    currentConnector?.id,
+    connector.id,
+    drawOffset
+  ]);
+
+  const isPlaybackActive = flowPlayback.status !== 'IDLE';
+
+  const packet = useMemo(() => {
+    if (!isPlaybackActive || !packetPoints || !currentStep) return null;
 
     const packetColor =
       currentStep.direction === 'RESPONSE'
@@ -167,20 +206,22 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
       points: packetPoints,
       color: packetColor,
       label: currentStep.label,
-      durationMs: getStepDurationMs(currentStep, flowPlayback.speed),
+      // The step's own duration at speed 1x - ConnectorPacket applies the
+      // current speed to the running tween via `timeScale()` instead of
+      // rebuilding it, so a speed change mid-flight doesn't restart the
+      // tween either.
+      baseDurationMs: getStepDurationMs(currentStep, 1),
+      speed: flowPlayback.speed,
       destinationItemId
     };
   }, [
-    flowPlayback.status,
-    flowPlayback.speed,
+    isPlaybackActive,
+    packetPoints,
     currentStep,
-    currentConnector,
-    connector.id,
-    connector.path.tiles,
     connector.anchors,
-    drawOffset,
     theme.palette.primary.main,
-    theme.palette.secondary.main
+    theme.palette.secondary.main,
+    flowPlayback.speed
   ]);
 
   return (
@@ -284,7 +325,8 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
             points={packet.points}
             color={packet.color}
             label={packet.label}
-            durationMs={packet.durationMs}
+            baseDurationMs={packet.baseDurationMs}
+            speed={packet.speed}
             status={flowPlayback.status === 'PAUSED' ? 'PAUSED' : 'PLAYING'}
             reducedMotion={reducedMotion}
             onArrive={() => {

@@ -1,18 +1,20 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Connector, Flow, FlowStep } from 'src/types';
 import { useModelStore } from 'src/stores/modelStore';
 import { useUiStateStore } from 'src/stores/uiStateStore';
-import { clampStepIndex } from 'src/utils';
+import { findFlowStepConnector } from 'src/utils';
 
 // Exposes the currently selected flow, its current step and the resolved
 // connector for that step, plus the playback actions. It never starts a
 // timer itself — a renderer (T4) drives playback forward by calling
 // advance() once a step's packet animation finishes.
 //
-// It also reconciles playback with the model whenever the model changes
-// underneath it (e.g. the selected flow or the current step's connector was
-// deleted): see the RECONCILE effect below, which drives the pure
-// flowPlaybackReducer('RECONCILE', ...) in src/utils/flowPlayback.ts.
+// Model <-> playback reconciliation (e.g. the selected flow or the current
+// step's connector was deleted) is *not* done here: this hook is used by
+// every rendered Connector, so doing it here would re-dispatch the RECONCILE
+// action once per connector on screen. See
+// src/components/FlowPlaybackReconciler/FlowPlaybackReconciler.tsx, mounted
+// once at the Isoflow root, for that (R3-reconcile-per-consumer).
 export const useFlowPlayback = () => {
   const flows = useModelStore((state) => {
     return state.flows ?? [];
@@ -44,17 +46,7 @@ export const useFlowPlayback = () => {
 
   const findConnector = useCallback(
     (step: FlowStep | undefined): Connector | undefined => {
-      if (!step) return undefined;
-
-      const view = views.find((_view) => {
-        return (_view.connectors ?? []).some((connector) => {
-          return connector.id === step.connectorId;
-        });
-      });
-
-      return view?.connectors?.find((connector) => {
-        return connector.id === step.connectorId;
-      });
+      return findFlowStepConnector(views, step);
     },
     [views]
   );
@@ -112,33 +104,6 @@ export const useFlowPlayback = () => {
     },
     [actions]
   );
-
-  // Reconciles playback with the model whenever it changes underneath it.
-  // The pure reducer (src/utils/flowPlayback.ts) decides the outcome; this
-  // effect only gathers the facts it needs: does the selected flow still
-  // exist, and does the step at the (clamped) current index still resolve
-  // to a real connector.
-  useEffect(() => {
-    if (flowPlayback.flowId === null) return;
-
-    const flowExists = flow !== undefined;
-    const stepsCount = steps.length;
-    const connectorExists =
-      !flowExists || stepsCount === 0
-        ? true
-        : findConnector(
-            steps[clampStepIndex(flowPlayback.stepIndex, stepsCount)]
-          ) !== undefined;
-
-    actions.reconcile(stepsCount, flowExists, connectorExists);
-  }, [
-    actions,
-    flow,
-    steps,
-    flowPlayback.flowId,
-    flowPlayback.stepIndex,
-    findConnector
-  ]);
 
   return {
     flow,

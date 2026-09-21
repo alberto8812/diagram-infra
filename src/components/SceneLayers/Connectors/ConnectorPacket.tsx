@@ -8,7 +8,11 @@ interface Props {
   points: Coords[];
   color: string;
   label?: string;
-  durationMs: number;
+  // The step's own duration at speed 1x. The running tween is scaled by
+  // `speed` via `timeScale()` (see the effect below) rather than rebuilt,
+  // so a speed change mid-flight adjusts the pace without restarting it.
+  baseDurationMs: number;
+  speed: number;
   // Only 'PLAYING'/'PAUSED' are meaningful here — Connector.tsx only mounts
   // this component while one of those is true for the connector's step.
   status: FlowPlaybackStatus;
@@ -30,7 +34,8 @@ export const ConnectorPacket = ({
   points,
   color,
   label,
-  durationMs,
+  baseDurationMs,
+  speed,
   status,
   reducedMotion,
   onArrive
@@ -42,6 +47,16 @@ export const ConnectorPacket = ({
   const labelGroupRef = useRef<SVGGElement>(null);
   const tweenRef = useRef<gsap.core.Tween | null>(null);
   const hasArrivedRef = useRef(false);
+
+  // Latest-ref pattern: `arrive()` below is captured once inside the
+  // tween-creation effect (which only re-runs per step, not on every
+  // render), so it must read `onArrive` through a ref to always call the
+  // current callback rather than whichever one was passed in at the moment
+  // the effect last ran (R3-stale-onArrive-closure).
+  const onArriveRef = useRef(onArrive);
+  useEffect(() => {
+    onArriveRef.current = onArrive;
+  }, [onArrive]);
 
   const pointsString = useMemo(() => {
     return points
@@ -105,14 +120,14 @@ export const ConnectorPacket = ({
       if (hasArrivedRef.current) return;
       hasArrivedRef.current = true;
       moveTo(1);
-      onArrive();
+      onArriveRef.current();
     };
 
     moveTo(reducedMotion ? 1 : 0);
 
     const durationSeconds = reducedMotion
-      ? Math.min(durationMs, 400) / 1000
-      : Math.max(durationMs, 0) / 1000;
+      ? Math.min(baseDurationMs, 400) / 1000
+      : Math.max(baseDurationMs, 0) / 1000;
 
     const progressState = { value: 0 };
     const tween = gsap.to(progressState, {
@@ -134,12 +149,15 @@ export const ConnectorPacket = ({
       tween.kill();
       tweenRef.current = null;
     };
-    // points/durationMs/reducedMotion identity changes on every step
-    // (Connector.tsx keys this component by step id), so this intentionally
-    // does not react to `status` — resuming/pausing the tween in place is
-    // handled by the effect below instead of restarting it here.
+    // points/baseDurationMs/reducedMotion identity changes on every step
+    // (Connector.tsx keys this component by step id) and are otherwise
+    // stable across unrelated re-renders (see Connector.tsx's
+    // `packetPoints`/`tilesKey` memos), so this intentionally does not react
+    // to `status` or `speed` — pausing/resuming and speed changes are
+    // applied to this same tween by the two effects below instead of
+    // restarting it here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, durationMs, reducedMotion]);
+  }, [points, baseDurationMs, reducedMotion]);
 
   // Pauses/resumes the in-flight tween without restarting it — this is what
   // lets PAUSED freeze the packet in place and PLAY resume from there.
@@ -153,6 +171,16 @@ export const ConnectorPacket = ({
       tween.pause();
     }
   }, [status]);
+
+  // Adjusts the running tween's playback rate in place when speed changes,
+  // instead of rebuilding it (which would jump the packet back to its
+  // starting point and restart the step).
+  useEffect(() => {
+    const tween = tweenRef.current;
+    if (!tween) return;
+
+    tween.timeScale(speed > 0 ? speed : 1);
+  }, [speed]);
 
   return (
     <g>
