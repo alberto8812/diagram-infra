@@ -22,8 +22,8 @@ which requests and responses move through it.
 ## Scope
 Authorized: connector schema/rendering/controls, a new `flows` model entity,
 playback state in `uiStateStore`, packet rendering, node highlight, playback UI.
-Out of scope: real 3D renderer (three.js). Icon work (T6) waits on a product
-decision: isometric icons with volume vs real 3D.
+Out of scope: real 3D renderer (three.js). Decision (user, 2026-09-21): T6 uses
+isometric icons with volume inside the current 2.5D engine.
 
 ## Constraints
 - Backward compatible model: all new fields optional.
@@ -34,12 +34,14 @@ decision: isometric icons with volume vs real 3D.
 ## Tasks
 - [x] T1 Connector animation: `animated` + `direction` on connectorSchema,
       dash-offset flow animation, toggle in ConnectorControls
-- [ ] T2 Flow model: `flows` schema (steps: connectorId, direction request|response,
+- [x] T2 Flow model: `flows` schema (steps: connectorId, direction request|response,
       label, durationMs), reducers, types, tests
 - [ ] T3 Playback engine: uiStateStore playback state (play/pause/step/speed/current step)
 - [ ] T4 Packet rendering along connector path + node pulse on arrival
 - [ ] T5 Playback controls in UiOverlay (editor + readonly) and flow step editor
-- [ ] T6 Icons "3D" (blocked: pending product decision)
+- [ ] T6 Isometric volume for flat icons: wrap non-isometric icons (e.g. Simple
+      Icons CI/CD set) in an extruded isometric block (shaded side faces, logo
+      projected on top); isopack icons stay unchanged
 
 ## Route per task
 | Task | Route | Trigger evidence |
@@ -103,5 +105,70 @@ Verification:
 Commit: see `git log` on this branch, Conventional Commit
 `feat(connectors): add animated flow with direction`.
 
+### T2 Flow model (done)
+Route: delegated direct (touched 10+ non-trivial files: schema, model,
+validation, types, model util, reducers, hooks).
+
+Changes:
+- `src/schemas/common.ts`: added `label: z.string().max(60)` to
+  `constrainedStrings` for short, user-facing step labels.
+- `src/schemas/flow.ts` (new): `flowStepDirectionOptions = ['REQUEST',
+  'RESPONSE']`, `flowStepSchema` (`id`, `connectorId`, `direction`,
+  optional `label`/`durationMs` (positive int)), `flowSchema` (`id`, `name`,
+  optional `description`, `steps: array(flowStepSchema)`), and
+  `flowsSchema = z.array(flowSchema)`.
+- `src/schemas/model.ts`: added `flows: flowsSchema.optional()` to
+  `modelSchema` — existing diagrams without `flows` still validate.
+- `src/schemas/index.ts`: re-exports `./flow`.
+- `src/schemas/validation.ts`: added `INVALID_FLOW_STEP_CONNECTOR_REF` issue
+  type and `validateFlow`, which checks every step's `connectorId` exists in
+  some view's connectors; wired into `validateModel` over `model.flows ?? []`.
+- `src/types/model.ts`: added `Flow`, `FlowStep`, `Flows` inferred types and
+  `FlowStepDirection = (typeof flowStepDirectionOptions)[number]`. Deviation
+  from the `ConnectorStyle`/`ConnectorDirection` precedent: those use
+  `keyof typeof <readonly tuple>`, which resolves to array index/method keys,
+  not the literal union — an existing, currently-unused quirk. `FlowStepDirection`
+  uses the correct `(typeof X)[number]` extraction instead, to keep the new
+  type actually usable.
+- `src/utils/model.ts`: `modelFromModelStore` now carries `flows` through, so
+  autosave (`Isoflow.tsx`), JSON export (`MainMenu.tsx`) and PNG export
+  (`ExportImageDialog.tsx`) keep flows — `persistence.ts`'s `stripIcons`
+  already spreads `...rest`, so no change needed there.
+- `src/stores/reducers/flow.ts` (new): model-level reducers, following the
+  `modelItem.ts` pattern (no `viewId`, since flows aren't view-scoped):
+  `createFlow`, `updateFlow`, `deleteFlow`, `createFlowStep`, `updateFlowStep`,
+  `deleteFlowStep`, `reorderFlowSteps` (clamps the target index with the
+  existing `clamp` util).
+- `src/stores/reducers/index.ts`: re-exports `./flow`.
+- `src/stores/reducers/connector.ts`: `deleteConnector` now also strips any
+  flow step whose `connectorId` matches the deleted connector, across all
+  flows.
+- `src/hooks/useFlow.ts` (new): reads one flow by id, mirrors `useModelItem`.
+- `src/hooks/useScene.ts`: wired `createFlow`/`updateFlow`/`deleteFlow`/
+  `createFlowStep`/`updateFlowStep`/`deleteFlowStep`/`reorderFlowSteps`
+  callbacks (same `getState`/`setState` plumbing as the existing model-item
+  and view actions) and added them to the returned object.
+- Tests: `src/schemas/__tests__/validation.test.ts` — valid flow, invalid
+  step direction, model without `flows` still validates, a flow step with a
+  dangling `connectorId` fails model validation with
+  `INVALID_FLOW_STEP_CONNECTOR_REF`, and a flow whose steps reference real
+  connectors passes. `src/stores/reducers/__tests__/flow.test.ts` (new) —
+  create/update/delete a flow, create/update/delete/reorder a step, and
+  deleting a connector (via `reducers.view({ action: 'DELETE_CONNECTOR' })`)
+  removes the flow steps that referenced it.
+
+Verification:
+- `npx tsc --noEmit`: passed, no errors.
+- `npm test`: 7 suites / 39 tests passed (incl. the 9 new cases across the
+  two files above).
+- `npm run lint`: only the known pre-existing issues (`import/no-cycle` in
+  `view.ts`/`viewItem.ts`, `no-console`/`no-alert` warnings in
+  `ExportImageDialog.tsx`/`useInitialDataManager.ts`). A scoped eslint run on
+  every file this task touched reports 0 problems (after one `--fix` pass
+  for prettier formatting).
+
+Commit: Conventional Commit `feat(model): add flows for request/response
+simulation`.
+
 ## Next step
-T2 (flows schema).
+T3 (playback engine state).

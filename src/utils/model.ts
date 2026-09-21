@@ -61,6 +61,7 @@ export const modelFromModelStore = (modelStore: ModelStore): Model => {
     colors: modelStore.colors,
     icons: modelStore.icons,
     items: modelStore.items,
-    views: modelStore.views
+    views: modelStore.views,
+    flows: modelStore.flows
   };
 };

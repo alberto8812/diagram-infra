@@ -10,5 +10,6 @@ export const color = z.string();
 
 export const constrainedStrings = {
   name: z.string().max(100),
-  description: z.string().max(1000)
+  description: z.string().max(1000),
+  label: z.string().max(60)
 };

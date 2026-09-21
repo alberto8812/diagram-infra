@@ -6,6 +6,7 @@ import { viewsSchema } from './views';
 import { validateModel } from './validation';
 import { iconsSchema } from './icons';
 import { colorsSchema } from './colors';
+import { flowsSchema } from './flow';
 
 export const modelSchema = z
   .object({
@@ -15,7 +16,8 @@ export const modelSchema = z
     items: modelItemsSchema,
     views: viewsSchema,
     icons: iconsSchema,
-    colors: colorsSchema
+    colors: colorsSchema,
+    flows: flowsSchema.optional()
   })
   .superRefine((model, ctx) => {
     const issues = validateModel({ ...INITIAL_DATA, ...model });

@@ -14,6 +14,15 @@ export const deleteConnector = (
   const newState = produce(state, (draft) => {
     draft.model.views[view.index].connectors?.splice(connector.index, 1);
     delete draft.scene.connectors[connector.index];
+
+    draft.model.flows = draft.model.flows?.map((flow) => {
+      return {
+        ...flow,
+        steps: flow.steps.filter((step) => {
+          return step.connectorId !== id;
+        })
+      };
+    });
   });
 
   return newState;
