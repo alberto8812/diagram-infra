@@ -2,6 +2,7 @@ const path = require('path');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
 const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 const webpack = require('webpack');
+const { setupDiagramApi } = require('./diagram-api');
 
 module.exports = {
   mode: 'development',
@@ -20,7 +21,13 @@ module.exports = {
       '.csb.app', // So Codesandbox.io can run the dev server
       '.ngrok-free.app'
     ],
-    port: 3000
+    port: 3000,
+    // Dev-only diagram persistence. See webpack/diagram-api.js for the
+    // path-traversal and payload guards.
+    setupMiddlewares: (middlewares, devServer) => {
+      setupDiagramApi(devServer);
+      return middlewares;
+    }
   },
   module: {
     rules: [
