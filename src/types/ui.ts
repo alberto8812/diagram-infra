@@ -131,6 +131,24 @@ export const LayerOrderingActionOptions = {
 
 export type LayerOrderingAction = keyof typeof LayerOrderingActionOptions;
 
+export const FlowPlaybackStatusOptions = {
+  IDLE: 'IDLE',
+  PLAYING: 'PLAYING',
+  PAUSED: 'PAUSED'
+} as const;
+
+export type FlowPlaybackStatus = keyof typeof FlowPlaybackStatusOptions;
+
+// Playback state for a running flow simulation. UI state only — never
+// persisted in the model (see src/utils/flowPlayback.ts for the pure
+// transition logic and src/hooks/useFlowPlayback.ts for the React glue).
+export interface FlowPlayback {
+  flowId: string | null;
+  status: FlowPlaybackStatus;
+  stepIndex: number;
+  speed: number;
+}
+
 export interface UiState {
   view: string;
   mainMenuOptions: MainMenuOptions;
@@ -146,6 +164,7 @@ export interface UiState {
   mouse: Mouse;
   rendererEl: HTMLDivElement | null;
   enableDebugTools: boolean;
+  flowPlayback: FlowPlayback;
 }
 
 export interface UiStateActions {
@@ -166,6 +185,14 @@ export interface UiStateActions {
   setMouse: (mouse: Mouse) => void;
   setRendererEl: (el: HTMLDivElement) => void;
   setEnableDebugTools: (enabled: boolean) => void;
+  selectFlow: (flowId: string | null) => void;
+  play: (stepsLength: number) => void;
+  pause: () => void;
+  stop: () => void;
+  nextStep: (stepsLength: number) => void;
+  prevStep: (stepsLength: number) => void;
+  setSpeed: (speed: number) => void;
+  advance: (stepsLength: number) => void;
 }
 
 export type UiStateStore = UiState & {

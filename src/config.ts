@@ -8,7 +8,8 @@ import {
   ViewItem,
   View,
   Rectangle,
-  Colors
+  Colors,
+  FlowPlayback
 } from 'src/types';
 import { CoordsUtils } from 'src/utils';
 import { customVars } from './styles/theme';
@@ -85,12 +86,24 @@ export const INITIAL_DATA: InitialData = {
   views: [],
   fitToView: false
 };
+// Default duration for a flow step's packet animation when the step itself
+// does not set one. Effective duration = durationMs / playback speed.
+export const DEFAULT_FLOW_STEP_DURATION_MS = 1200;
+
+export const INITIAL_FLOW_PLAYBACK: FlowPlayback = {
+  flowId: null,
+  status: 'IDLE',
+  stepIndex: 0,
+  speed: 1
+};
+
 export const INITIAL_UI_STATE = {
   zoom: 1,
   scroll: {
     position: CoordsUtils.zero(),
     offset: CoordsUtils.zero()
-  }
+  },
+  flowPlayback: INITIAL_FLOW_PLAYBACK
 };
 export const INITIAL_SCENE_STATE = {
   connectors: {},

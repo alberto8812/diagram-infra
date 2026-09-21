@@ -168,7 +168,64 @@ Verification:
   for prettier formatting).
 
 Commit: Conventional Commit `feat(model): add flows for request/response
-simulation`.
+simulation` (13b329e).
+
+### T3 Playback engine state (done)
+Route: delegated direct (touched 7 non-trivial files: ui types, config,
+pure util, utils barrel, uiStateStore, hook, plus a new test file).
+
+Changes:
+- `src/types/ui.ts`: added `FlowPlaybackStatusOptions`
+  (`IDLE`/`PLAYING`/`PAUSED`), `FlowPlaybackStatus` type, and the
+  `FlowPlayback` interface (`flowId`, `status`, `stepIndex`, `speed`).
+  Added `flowPlayback: FlowPlayback` to `UiState` and
+  `selectFlow`/`play`/`pause`/`stop`/`nextStep`/`prevStep`/`setSpeed`/
+  `advance` to `UiStateActions`. This is UI state only — the model store is
+  untouched.
+- `src/config.ts`: added `DEFAULT_FLOW_STEP_DURATION_MS = 1200` and
+  `INITIAL_FLOW_PLAYBACK` (`{ flowId: null, status: 'IDLE', stepIndex: 0,
+  speed: 1 }`), wired into `INITIAL_UI_STATE.flowPlayback`.
+- `src/utils/flowPlayback.ts` (new): pure, React-free step-sequencing logic
+  — `flowPlaybackReducer(state, action, stepsCount = 0)`, `clampStepIndex`,
+  and `getStepDurationMs(step, speed)` (`= (step.durationMs ??
+  DEFAULT_FLOW_STEP_DURATION_MS) / speed`, ignoring a non-positive speed).
+  Documented playback-end behavior: `advance()` at the last step sets
+  `status: 'IDLE'` and **keeps** `stepIndex = stepsCount - 1` (does not loop
+  or reset to 0), so the finished diagram stays visible until the user
+  replays or picks another flow. `SELECT_FLOW` always resets to step 0/IDLE
+  but keeps the current speed. Exported via `src/utils/index.ts` (same
+  config-import pattern already used by `renderer.ts`, so no new
+  `import/no-cycle` finding).
+- `src/stores/uiStateStore.tsx`: added `flowPlayback` to the store's initial
+  state (from `INITIAL_UI_STATE.flowPlayback`) and the eight actions, each
+  calling `flowPlaybackReducer` and `set()`-ing the result — same pattern as
+  the existing zoom/scroll actions. `play`/`nextStep`/`prevStep`/`advance`
+  take a `stepsLength` the caller supplies (the store has no access to the
+  model store to look up a flow's steps itself).
+- `src/hooks/useFlowPlayback.ts` (new): resolves the selected `Flow` from
+  the model store, the `currentStep` (`steps[stepIndex]`), and the
+  `currentConnector` by searching every view's connectors for the step's
+  `connectorId` (same reference shape the model validator checks in T2).
+  Wraps each store action, supplying `steps.length` where needed. Starts no
+  timers — `advance()` is only called externally by whatever drives the
+  animation loop (T4's renderer).
+- Tests: `src/utils/__tests__/flowPlayback.test.ts` (new) — `clampStepIndex`
+  bounds and empty-flow case, `getStepDurationMs` (own duration, default
+  fallback, speed scaling, non-positive speed guard), and
+  `flowPlaybackReducer` for every action including the empty-flow and
+  last-step edge cases for `PLAY`/`ADVANCE`.
+
+Verification:
+- `npx tsc --noEmit`: passed, no errors.
+- `npm test`: 8 suites / 56 tests passed (17 new: 14 for
+  `flowPlaybackReducer`/`clampStepIndex`/`getStepDurationMs`).
+- `npm run lint`: only the known pre-existing issues (`import/no-cycle` in
+  `view.ts`/`viewItem.ts`, `no-console`/`no-alert` warnings in
+  `ExportImageDialog.tsx`/`useInitialDataManager.ts`) — confirmed no new
+  cycle finding from the `utils/flowPlayback.ts` -> `src/config` import. A
+  scoped eslint run on every file this task touched reports 0 problems.
+
+Commit: Conventional Commit `feat(ui): add flow playback state`.
 
 ## Next step
-T3 (playback engine state).
+T4 (packet rendering along the connector path + node pulse on arrival).
