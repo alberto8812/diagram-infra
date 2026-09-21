@@ -38,7 +38,7 @@ isometric icons with volume inside the current 2.5D engine.
       label, durationMs), reducers, types, tests
 - [x] T3 Playback engine: uiStateStore playback state (play/pause/step/speed/current step)
 - [x] T4 Packet rendering along connector path + node pulse on arrival
-- [ ] T5 Playback controls in UiOverlay (editor + readonly) and flow step editor
+- [x] T5 Playback controls in UiOverlay (editor + readonly) and flow step editor
 - [ ] T6 Isometric volume for flat icons: wrap non-isometric icons (e.g. Simple
       Icons CI/CD set) in an extruded isometric block (shaded side faces, logo
       projected on top); isopack icons stay unchanged
@@ -360,6 +360,159 @@ splitting risked a broken intermediate commit for no real benefit here).
 - Outcome: approved, acknowledged/burned
 - Reviewed boundary: d81ef09
 
+### Review 2 (RDD, over d81ef09..c311b8e)
+- Lineage: review-f33a222b869d244b
+- Range: d81ef09..c311b8e
+- Risk: medium
+- Consent: granted
+- Lenses: 1 (reliability)
+- Outcome: approved, acknowledged/burned
+- Reviewed boundary: c311b8e
+
+### Review fixes (done)
+Route: delegated direct (touched 6 non-trivial files: the two flow-review
+findings shared them with T5's own files where noted below).
+
+Changes:
+- `src/components/SceneLayers/Connectors/Connector.tsx`: split the old
+  single `packet` memo into `tilesKey` (a text key of
+  `connector.path.tiles`, since `useConnector`'s return value — and thus
+  `connector.path.tiles` — gets a new array reference on *every* model
+  change, not just ones touching this connector), `packetPoints` (memoized
+  on `tilesKey`/step id/direction/connector id/`drawOffset` only — never on
+  `flowPlayback.status` or `.speed`), and `packet` (adds status/speed/color/
+  label/destination on top of the now-stable `packetPoints`). This is what
+  fixes **WARNING R3-pause-restarts-packet-tween**: PAUSE, a speed change,
+  or an unrelated model edit no longer produces a new `points` array
+  reference, so `ConnectorPacket`'s tween-creation effect (keyed on
+  `[points, baseDurationMs, reducedMotion]`) no longer restarts.
+  `getStepDurationMs(currentStep, 1)` now feeds a new `baseDurationMs`
+  field (duration at speed 1x) instead of the old speed-scaled
+  `durationMs`; a new `speed` field carries the live playback speed.
+- `src/components/SceneLayers/Connectors/ConnectorPacket.tsx`: props
+  renamed `durationMs` -> `baseDurationMs` + new `speed: number`. The
+  tween-creation effect keys off `[points, baseDurationMs, reducedMotion]`
+  (was `[points, durationMs, reducedMotion]`) and no longer rebuilds on a
+  speed change; a new effect calls `tween.timeScale(speed)` to adjust the
+  running tween's rate in place instead. Fixes **SUGGESTION
+  R3-stale-onArrive-closure**: added an `onArriveRef` (latest-ref pattern,
+  updated via its own effect) and the tween's `arrive()` now calls
+  `onArriveRef.current()` instead of the `onArrive` closed over when the
+  tween-creation effect last ran.
+- `src/hooks/useFlowPlayback.ts`: removed the RECONCILE `useEffect` (this
+  hook is called by every rendered `Connector`, so it was
+  re-dispatching `actions.reconcile(...)` once per connector on screen per
+  relevant model change). `findConnector` now delegates to the new shared
+  `findFlowStepConnector` util instead of duplicating the view-search
+  logic inline. Fixes **SUGGESTION R3-reconcile-per-consumer**.
+- `src/components/FlowPlaybackReconciler/FlowPlaybackReconciler.tsx`
+  (new): the RECONCILE effect moved here verbatim (same fact-gathering,
+  same `flowPlaybackReducer('RECONCILE', ...)`), rendered as a
+  single invisible component.
+- `src/Isoflow.tsx`: mounts `<FlowPlaybackReconciler />` once, at the
+  `App` root (alongside `<Renderer/>`/`<UiOverlay/>`), so reconciliation
+  runs once per relevant model change regardless of how many connectors
+  are on screen.
+- `src/utils/flow.ts` (new): `findFlowStepConnector(views, step)` — the
+  connector-resolution logic shared by `useFlowPlayback.ts` and
+  `FlowPlaybackReconciler`. (T5 below adds two more pure functions to this
+  same file.)
+- `src/utils/index.ts`: exports `./flow`.
+- Tests: `src/utils/__tests__/flow.test.ts` (new) — `findFlowStepConnector`
+  resolving across views, an undefined step, and no view having the
+  connector.
+
+Verification:
+- `npx tsc --noEmit`: passed, no errors.
+- `npm test`: 10 suites / 81 tests passed (3 new in `flow.test.ts`).
+- `npm run lint`: only the known pre-existing issues (`import/no-cycle` in
+  `view.ts`/`viewItem.ts`, `no-console`/`no-alert` warnings in
+  `ExportImageDialog.tsx`/`useInitialDataManager.ts`).
+
+Commit: `fix(simulation): keep packet tween alive across pause and speed
+changes` (f69ffa9).
+
+### T5 Playback controls + flow editor (done)
+Route: delegated direct (touched 8 non-trivial files: UI types, config,
+UiOverlay wiring, two new components, examples data, and the shared
+`flow.ts` util/tests extended from the fix commit above).
+
+Changes:
+- `src/components/FlowControls/FlowPlaybackBar.tsx` (new): flow selector
+  (`Select` by name), Play/Pause (toggles on `flowPlayback.status`),
+  Stop, Prev/Next step, speed `Select` (0.5x/1x/2x, driven by
+  `FLOW_PLAYBACK_SPEED_OPTIONS`), and a "Step n / total — label"
+  indicator (`useFlowPlayback()`'s `flow`/`steps`/`currentStep`). Visible
+  for both `EDITABLE` and `EXPLORABLE_READONLY` editor modes; hidden
+  entirely when the model has no flows, except in `EDITABLE` mode, which
+  shows a "Create a flow" button that creates an empty flow, selects it
+  for playback, and opens the editor dialog.
+- `src/components/FlowControls/FlowEditorDialog.tsx` (new, `EDITABLE`
+  only): left column lists flows (create/select/delete); right column
+  edits the selected flow's name, its steps (connector labelled "from ->
+  to" via `getConnectorEndpointLabel`, direction, optional label,
+  reorder up/down via `reorderFlowSteps`, delete), an "Add step" form
+  (connector `Select` sourced from `useScene().connectors` — the current
+  view — direction, optional label, optional duration), and an "Add
+  return path" button (disabled when the flow has no REQUEST steps) that
+  calls `buildReturnPathSteps` and creates each returned step. Guards
+  **R3-useFlow-throws-on-missing**: `selectedFlowId` is only ever resolved
+  with `flows.find(...)` (never the throwing `useFlow()` hook) and is
+  reset via a `useEffect` whenever it no longer matches a flow in the
+  list — deleting the flow currently being edited (from the list in the
+  same dialog, or from anywhere else touching the model) falls back to
+  another flow or the empty state instead of crashing.
+- `src/utils/flow.ts`: added `getConnectorEndpointLabel(connector, items)`
+  ("Item A -> Item B", falling back to "?" per endpoint for a tile anchor
+  or an unresolved item, "Unnamed connector" with no anchors) and
+  `buildReturnPathSteps(steps, makeId)` (pure; filters REQUEST steps,
+  reverses them, maps each to a new RESPONSE step carrying over
+  `connectorId`/`label`/`durationMs`; `makeId` is injected so it stays
+  testable without importing `generateId`).
+- `src/types/ui.ts`: `DialogTypeEnum` gained `FLOW_EDITOR` (same pattern as
+  the existing `EXPORT_IMAGE`).
+- `src/config.ts`: added `FLOW_PLAYBACK_SPEED_OPTIONS = [0.5, 1, 2] as
+  const`.
+- `src/components/UiOverlay/UiOverlay.tsx`: `ToolsEnum`/
+  `EDITOR_MODE_MAPPING` gained `FLOW_CONTROLS` (both `EDITABLE` and
+  `EXPLORABLE_READONLY`, not `NON_INTERACTIVE` — that mode intentionally
+  renders no UI, used by `ExportImageDialog`'s internal render). Renders
+  `<FlowPlaybackBar/>` top-center (clear of `MAIN_MENU`/`TOOL_MENU`/
+  `VIEW_TITLE`), and `<FlowEditorDialog/>` when `dialog === 'FLOW_EDITOR'`
+  (guarded by `availableTools.includes('FLOW_CONTROLS')` so a stale dialog
+  state can't surface the editor in a mode where the tool isn't
+  available).
+- `src/examples/initialData.ts`: added one sample flow ("Landside
+  check-in": a REQUEST + RESPONSE step over the existing
+  `2e025225-169c-4609-bf93-a4a7aa602b00` connector, Landside operations ->
+  AODB) so `BasicEditor`/`ReadonlyMode` have something to play back out of
+  the box. `diagrams/infra.json` was not touched.
+- Tests: `src/utils/__tests__/flow.test.ts` — added
+  `getConnectorEndpointLabel` (endpoint names, "?" fallback, no-anchors
+  fallback) and `buildReturnPathSteps` (reverse order, ignores existing
+  RESPONSE steps, empty input, carries `durationMs`) cases.
+
+Verification:
+- `npx tsc --noEmit`: passed, no errors.
+- `npm test`: 10 suites / 88 tests passed (7 new: `getConnectorEndpointLabel`
+  x3, `buildReturnPathSteps` x4).
+- `npm run lint`: only the known pre-existing issues (`import/no-cycle` in
+  `view.ts`/`viewItem.ts`, `no-console`/`no-alert` warnings in
+  `ExportImageDialog.tsx`/`useInitialDataManager.ts`).
+
+Commit: `feat(simulation): add playback controls and flow step editor`
+(a8b8b12).
+
+### Follow-ups (not in scope for T5)
+- Duplicate ids finding (still unvalidated — flagged since the
+  `aea77bd..d81ef09` review, carried through T4 and T5).
+- No render/DOM tests for `FlowPlaybackBar`/`FlowEditorDialog`: same
+  reasoning as T4's `ConnectorPacket`/`Node` — `jest.config.js` uses
+  `testEnvironment: "node"` (no jsdom) and this project has no existing
+  RTL/jsdom convention to extend, so the new pure logic
+  (`getConnectorEndpointLabel`, `buildReturnPathSteps`) is fully tested
+  and the React components stay thin wrappers over it plus the
+  already-tested `useScene`/`useFlowPlayback` hooks and reducers.
+
 ## Next step
-T5 (playback controls in UiOverlay — editor + readonly — and the flow step
-editor).
+T6 (isometric volume for flat icons).
