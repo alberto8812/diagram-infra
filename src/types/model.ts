@@ -24,7 +24,9 @@ import {
   environmentOptions,
   connectorProtocolOptions,
   connectorModeOptions,
-  connectorAuthOptions
+  connectorAuthOptions,
+  zoneKindOptions,
+  zoneVisibilityOptions
 } from 'src/schemas';
 import { StoreApi } from 'zustand';
 
@@ -37,6 +39,8 @@ export { environmentOptions } from 'src/schemas';
 export { connectorProtocolOptions } from 'src/schemas';
 export { connectorModeOptions } from 'src/schemas';
 export { connectorAuthOptions } from 'src/schemas';
+export { zoneKindOptions } from 'src/schemas';
+export { zoneVisibilityOptions } from 'src/schemas';
 export type Model = z.infer<typeof modelSchema>;
 export type ModelItems = z.infer<typeof modelItemsSchema>;
 export type Icon = z.infer<typeof iconSchema>;
@@ -65,6 +69,8 @@ export type ConnectorProtocol = (typeof connectorProtocolOptions)[number];
 // src/types/ui.ts (the "drawing a connector" cursor mode).
 export type ConnectorCommunicationMode = (typeof connectorModeOptions)[number];
 export type ConnectorAuth = (typeof connectorAuthOptions)[number];
+export type ZoneKind = (typeof zoneKindOptions)[number];
+export type ZoneVisibility = (typeof zoneVisibilityOptions)[number];
 
 export type ModelStore = Model & {
   actions: {

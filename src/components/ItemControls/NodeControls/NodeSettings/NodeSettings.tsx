@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Slider,
   Box,
@@ -7,7 +7,8 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Select,
-  MenuItem
+  MenuItem,
+  Typography
 } from '@mui/material';
 import {
   ModelItem,
@@ -22,9 +23,12 @@ import {
 import { MarkdownEditor } from 'src/components/MarkdownEditor/MarkdownEditor';
 import { useModelItem } from 'src/hooks/useModelItem';
 import { useIcon } from 'src/hooks/useIcon';
+import { useScene } from 'src/hooks/useScene';
 import { NODE_ICON_STYLE_DEFAULT } from 'src/config';
 import { LABEL_MAX_LENGTH } from 'src/schemas/common';
 import { parsePortInput, PORT_MIN, PORT_MAX } from 'src/utils/parsePortInput';
+import { getItemZones } from 'src/utils/containment';
+import { ZONE_KIND_LABELS } from 'src/utils/zoneLabels';
 import { DeleteButton } from '../../components/DeleteButton';
 import { Section } from '../../components/Section';
 
@@ -73,6 +77,14 @@ export const NodeSettings = ({
 }: Props) => {
   const modelItem = useModelItem(node.id);
   const { icon } = useIcon(modelItem.icon);
+  const { currentView } = useScene();
+
+  // Read-only: the node's containing zones for the current view, innermost
+  // to outermost (P0 containment zones, src/utils/containment.ts). Zones
+  // are edited on the rectangle itself (RectangleControls), not here.
+  const zones = useMemo(() => {
+    return getItemZones(currentView, node.id);
+  }, [currentView, node.id]);
   // Local buffer for the port field only: a `type="number"` input reports
   // '' for both a genuinely empty field and invalid/partial text (e.g. "-"),
   // so the committed model value alone can't drive the displayed text
@@ -152,6 +164,17 @@ export const NodeSettings = ({
               );
             })}
           </ToggleButtonGroup>
+        </Section>
+      )}
+      {zones.length > 0 && (
+        <Section title="Located in">
+          <Typography variant="body2" color="text.secondary">
+            {zones
+              .map((zone) => {
+                return zone.name ?? ZONE_KIND_LABELS[zone.zone];
+              })
+              .join(' → ')}
+          </Typography>
         </Section>
       )}
       <Section title="Resource">
