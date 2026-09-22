@@ -7,7 +7,8 @@ import {
   EastOutlined as ConnectorIcon,
   CropSquareOutlined as CropSquareIcon,
   Title as TitleIcon,
-  WarningAmberOutlined as IssuesIcon
+  WarningAmberOutlined as IssuesIcon,
+  AttachMoneyOutlined as CostIcon
 } from '@mui/icons-material';
 import { useUiStateStore } from 'src/stores/uiStateStore';
 import { IconButton } from 'src/components/IconButton/IconButton';
@@ -140,6 +141,16 @@ export const ToolMenu = () => {
             );
           }}
           isActive={dialog === 'ISSUES'}
+        />
+        <IconButton
+          name="Cost"
+          Icon={<CostIcon />}
+          onClick={() => {
+            uiStateStoreActions.setDialog(
+              dialog === 'COST_REPORT' ? null : 'COST_REPORT'
+            );
+          }}
+          isActive={dialog === 'COST_REPORT'}
         />
       </Stack>
     </UiElement>

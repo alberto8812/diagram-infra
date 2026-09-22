@@ -29,8 +29,10 @@ import { useScene } from 'src/hooks/useScene';
 import { NODE_ICON_STYLE_DEFAULT } from 'src/config';
 import { LABEL_MAX_LENGTH } from 'src/schemas/common';
 import { parsePortInput, PORT_MIN, PORT_MAX } from 'src/utils/parsePortInput';
+import { parseNumberInput } from 'src/utils/parseNumberInput';
 import { getItemZones } from 'src/utils/containment';
 import { ZONE_KIND_LABELS } from 'src/utils/zoneLabels';
+import { catalog, estimateItemCost } from 'src/cost';
 import { DeleteButton } from '../../components/DeleteButton';
 import { Section } from '../../components/Section';
 
@@ -134,6 +136,51 @@ export const NodeSettings = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelItem.port]);
+
+  // Same local-buffer reasoning as portText above (P4 cost estimation
+  // sizing fields).
+  const [countText, setCountText] = useState(() => {
+    return modelItem.count !== undefined ? String(modelItem.count) : '';
+  });
+  useEffect(() => {
+    const buffered = parseNumberInput(countText, false, {
+      min: 1,
+      integer: true
+    });
+    const bufferedValue =
+      buffered.action === 'set' ? buffered.value : undefined;
+
+    if (bufferedValue !== modelItem.count) {
+      setCountText(
+        modelItem.count !== undefined ? String(modelItem.count) : ''
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelItem.count]);
+
+  const [storageText, setStorageText] = useState(() => {
+    return modelItem.storageGb !== undefined ? String(modelItem.storageGb) : '';
+  });
+  useEffect(() => {
+    const buffered = parseNumberInput(storageText, false, { min: 0 });
+    const bufferedValue =
+      buffered.action === 'set' ? buffered.value : undefined;
+
+    if (bufferedValue !== modelItem.storageGb) {
+      setStorageText(
+        modelItem.storageGb !== undefined ? String(modelItem.storageGb) : ''
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelItem.storageGb]);
+
+  // Read-only: a rough monthly estimate from the local price catalog (P4
+  // cost estimation, src/cost) — recomputed from the current sizing fields
+  // on every render rather than stored, since it's cheap and must never
+  // drift from what's actually set.
+  const costEstimate = useMemo(() => {
+    return estimateItemCost(modelItem, catalog);
+  }, [modelItem]);
 
   return (
     <>
@@ -322,6 +369,94 @@ export const NodeSettings = ({
               onModelItemUpdated({ owner: text === '' ? undefined : text });
             }}
           />
+
+          <TextField
+            label="Size"
+            size="small"
+            placeholder="e.g. db.t3.medium"
+            helperText="Instance type/tier — used for the cost estimate below."
+            inputProps={{ maxLength: LABEL_MAX_LENGTH }}
+            value={modelItem.size ?? ''}
+            onChange={(e) => {
+              const text = e.target.value.slice(0, LABEL_MAX_LENGTH);
+              if ((modelItem.size ?? '') === text) return;
+
+              onModelItemUpdated({ size: text === '' ? undefined : text });
+            }}
+          />
+
+          <TextField
+            label="Count"
+            size="small"
+            type="number"
+            inputProps={{ min: 1, step: 1 }}
+            value={countText}
+            onChange={(e) => {
+              const text = e.target.value;
+              setCountText(text);
+
+              const result = parseNumberInput(
+                text,
+                e.target.validity.badInput,
+                {
+                  min: 1,
+                  integer: true
+                }
+              );
+
+              if (result.action === 'ignore') return;
+              if (result.action === 'clear') {
+                if (modelItem.count !== undefined)
+                  onModelItemUpdated({ count: undefined });
+                return;
+              }
+              if (modelItem.count !== result.value)
+                onModelItemUpdated({ count: result.value });
+            }}
+          />
+
+          <TextField
+            label="Storage (GB)"
+            size="small"
+            type="number"
+            inputProps={{ min: 0, step: 1 }}
+            value={storageText}
+            onChange={(e) => {
+              const text = e.target.value;
+              setStorageText(text);
+
+              const result = parseNumberInput(
+                text,
+                e.target.validity.badInput,
+                {
+                  min: 0
+                }
+              );
+
+              if (result.action === 'ignore') return;
+              if (result.action === 'clear') {
+                if (modelItem.storageGb !== undefined)
+                  onModelItemUpdated({ storageGb: undefined });
+                return;
+              }
+              if (modelItem.storageGb !== result.value)
+                onModelItemUpdated({ storageGb: result.value });
+            }}
+          />
+
+          {costEstimate.confidence !== 'unknown' && (
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Estimated cost
+              </Typography>
+              <Typography variant="body2">
+                ${costEstimate.monthlyUsd.toFixed(2)}/month
+                {costEstimate.confidence === 'approximate'
+                  ? ' (approximate)'
+                  : ''}
+              </Typography>
+            </Box>
+          )}
         </Stack>
       </Section>
       <Section title="Security">

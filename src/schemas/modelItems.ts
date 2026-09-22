@@ -58,7 +58,16 @@ export const modelItemSchema = z.object({
   port: z.number().int().min(1).max(65535).optional(),
   dataClassification: z.enum(dataClassificationOptions).optional(),
   encryptedAtRest: z.boolean().optional(),
-  internetFacing: z.boolean().optional()
+  internetFacing: z.boolean().optional(),
+  // P4 (cost estimation): sizing hints used only to look up a rough monthly
+  // price in the local catalog (src/cost) — never added to any *_DEFAULTS
+  // write-back object, same reasoning as the other optional fields above.
+  // `size` is a short instance-type/tier string (e.g. "db.t3.medium"), kept
+  // free-text since it has to match whatever shorthand the catalog and the
+  // Terraform importer use rather than a closed enum.
+  size: constrainedStrings.label.optional(),
+  count: z.number().int().min(1).optional(),
+  storageGb: z.number().min(0).optional()
 });
 
 export const modelItemsSchema = z.array(modelItemSchema);
