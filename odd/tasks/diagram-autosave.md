@@ -88,8 +88,11 @@ response has been sent.
 - `diagrams/` (new) — holds the committed diagram
 
 ## Delivery
-Branch `chore/dependency-security-update`. Commits still BLOCKED: git has no
-`user.name` / `user.email` on this machine.
+Branch `chore/dependency-security-update`, closing commit `aea77bd`
+(`feat(examples): autosave diagram to repo via dev-only endpoint`), merged into
+`main`; `main` == `origin/main`. No further push or PR action pending.
 
 ## Next step
-Commit once git identity is configured.
+Done. No further action pending.
+
+Status reconciled against git on 2026-09-22.

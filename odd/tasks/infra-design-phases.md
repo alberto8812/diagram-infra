@@ -97,4 +97,7 @@ Final PR slices (stacked-to-main, one per phase):
 Known limitations: no DOM/component tests (roadmap item 7); compliance mapping is indicative (CIS AWS omitted on purpose); cost catalog is approximate list pricing with a lastUpdated date; Lambda intentionally unpriced.
 
 ## Next step
-All phases done. Push and PR creation pending user decision (gh CLI not authenticated).
+All phases done. All work-unit commits merged into `main` (closing commit
+`ef410f5`); `main` == `origin/main`. No further push or PR action pending.
+
+Status reconciled against git on 2026-09-22.

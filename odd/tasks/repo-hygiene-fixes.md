@@ -82,8 +82,14 @@ Note `npm run lint` still exits 1 because of the two `import/no-cycle` errors. T
 is a real code issue, not a tooling one.
 
 ## Delivery
-Branch `chore/dependency-security-update`. Commits are still BLOCKED: git has no
-`user.name` / `user.email` configured on this machine.
+Branch `chore/dependency-security-update`, commit `570802f` (`chore: normalize
+line endings, align node pins and ignore emitted test declarations`), merged
+into `main`; `main` == `origin/main`. No further push or PR action pending.
 
 ## Next step
-Git identity in order to commit, then verify `docker build` with the daemon running.
+`docker build` is still NOT verified: Docker Desktop's daemon was not running
+on this machine when this work was done. Run `docker build -t isoflow .` once
+the daemon is up to confirm the `node:24` Dockerfile change before relying on
+the image.
+
+Status reconciled against git on 2026-09-22.

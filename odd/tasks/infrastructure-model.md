@@ -93,4 +93,7 @@ Final PR slices (stacked-to-main; PR3 split because T3-T5b is ~2400 lines):
 Known limitations / follow-ups: no DOM render tests for new controls (roadmap item 7); `eslint webpack` not configured; webpack smoke tests order-dependent.
 
 ## Next step
-All tasks done. Push and PR creation are pending user decision.
+All tasks done. All work-unit commits merged into `main` (closing commit
+`6dc1a38`); `main` == `origin/main`. No further push or PR action pending.
+
+Status reconciled against git on 2026-09-22.

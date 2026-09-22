@@ -98,9 +98,13 @@ the earlier blind `--force` run did to this repository.
 - Version pins disagree: `.nvmrc` 16.19.0, CircleCI 19.7.0, Dockerfile node:21.
 
 ## Delivery
-Branch `chore/dependency-security-update` created. Commits are BLOCKED: git has no
-`user.name` / `user.email` configured on this machine. Changes are verified and
-present in the working tree (`package.json`, `package-lock.json`).
+Branch `chore/dependency-security-update`, closing commit `f2b6599` (`fix(deps):
+upgrade vulnerable dependencies`), merged into `main`; `main` == `origin/main`.
+No further push or PR action pending.
 
 ## Next step
-User decision on T6, and git identity in order to commit.
+Done. T6 (react-quill/quill advisory) was decided by the repository owner as
+accepted risk (see above); re-evaluate only if the app starts rendering
+untrusted third-party content, per the condition already documented there.
+
+Status reconciled against git on 2026-09-22.
