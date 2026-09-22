@@ -83,8 +83,18 @@ export const TEXTBOX_DEFAULTS: Required<Omit<TextBox, 'id' | 'tile'>> = {
 export const TEXTBOX_PADDING = 0.2;
 export const TEXTBOX_FONT_WEIGHT = 'bold';
 
+// `zone`, `name` and `visibility` (P0, src/schemas/rectangle.ts) are
+// deliberately excluded here, same reasoning as CONNECTOR_DEFAULTS above:
+// this object gets spread onto every rectangle wherever it's read (see
+// src/hooks/useScene.ts `rectangles`), and that merged value is what gets
+// written back to the model on interactions like dragging a rectangle. A
+// concrete zone kind has no neutral choice and would silently start
+// labelling every plain (decoration-only) rectangle as a typed zone.
 export const RECTANGLE_DEFAULTS: Required<
-  Omit<Rectangle, 'id' | 'from' | 'to' | 'color'>
+  Omit<
+    Rectangle,
+    'id' | 'from' | 'to' | 'color' | 'zone' | 'name' | 'visibility'
+  >
 > = {};
 
 export const ZOOM_INCREMENT = 0.2;
