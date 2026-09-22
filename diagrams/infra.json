@@ -1,0 +1,726 @@
+{
+  "version": "",
+  "title": "Flyway + GitHub Actions + MySQL",
+  "description": "Stored procedures bajo control de versiones. El PR valida contra una base descartable en runners de GitHub; el pipeline aplica dev -> test -> production desde un runner self-hosted dentro de la VPC.",
+  "colors": [
+    {
+      "id": "color1",
+      "value": "#a5b8f3"
+    },
+    {
+      "id": "color2",
+      "value": "#bbadfb"
+    },
+    {
+      "id": "color3",
+      "value": "#f4eb8e"
+    },
+    {
+      "id": "color4",
+      "value": "#f0aca9"
+    },
+    {
+      "id": "color5",
+      "value": "#fad6ac"
+    },
+    {
+      "id": "color6",
+      "value": "#a8dc9d"
+    },
+    {
+      "id": "color7",
+      "value": "#b3e5e3"
+    }
+  ],
+  "items": [
+    {
+      "id": "83f4b023-2b2a-40ea-bcf0-d03a26f479d0",
+      "name": "Desarrollador",
+      "icon": "user",
+      "description": "<p>Edita el procedure y abre el PR</p>"
+    },
+    {
+      "id": "6c569cce-3c46-4697-97c8-981154c8be57",
+      "name": "PC",
+      "icon": "laptop",
+      "description": "<p>sql/R__sp_actualizar_pedido.sql</p><p>flyway migrate (local)</p>"
+    },
+    {
+      "id": "5bb977e1-9688-4b68-8481-d6681565c1c8",
+      "name": "git push",
+      "icon": "git",
+      "description": "<p>Rama de feature</p>"
+    },
+    {
+      "id": "2d40ed89-c906-4115-97e5-d7eb7ed0ec1b",
+      "name": "Pull Request",
+      "icon": "github",
+      "description": "<p>Ruleset sobre main: ambos checks obligatorios</p>"
+    },
+    {
+      "id": "a93d5438-0900-4c9c-aa82-0f75378bcc99",
+      "name": "pr-check.yml",
+      "icon": "gh-actions",
+      "description": "<p>Runner de GitHub</p><p>1. Applied migrations are not edited</p><p>2. Migrations run from an empty schema</p>"
+    },
+    {
+      "id": "88a3fd43-fa67-4008-9d96-e4985cf8a58e",
+      "name": "MySQL descartable",
+      "icon": "mysql",
+      "description": "<p>Contenedor efimero. Ninguna base real interviene en el PR.</p>"
+    },
+    {
+      "id": "cc457ec0-914f-4447-80a3-3deb0a21ec92",
+      "name": "main",
+      "icon": "github",
+      "description": "<p>merge (paths: sql/**)</p>"
+    },
+    {
+      "id": "44067b3b-2c98-4386-8395-353c6bec85d9",
+      "name": "AWS",
+      "icon": "_aws_"
+    },
+    {
+      "id": "93914f2e-935e-44fc-8fe1-860476685f25",
+      "name": "VPC interna (AWS)",
+      "icon": "aws-vpc",
+      "description": "<p>Sin ruta desde internet. 3306 solo desde el Security Group del runner.</p>"
+    },
+    {
+      "id": "wf-flyway-migrate",
+      "name": "flyway-migrate.yml",
+      "icon": "gh-actions",
+      "description": "<p>runs-on: [self-hosted, linux, vpc-interna]</p><p>info -&gt; validate -&gt; migrate -&gt; info</p>"
+    },
+    {
+      "id": "9313a642-f337-4075-af4e-25c0b7b3bcf9",
+      "name": "Runner self-hosted",
+      "icon": "aws-ec2",
+      "description": "<p>EC2 propia dentro de la VPC</p><p>Ejecuta el Flyway CLI</p>"
+    },
+    {
+      "id": "83710468-d7f2-4137-bf61-23a97b59f13e",
+      "name": "Flyway CLI",
+      "icon": "flyway",
+      "description": "<p>10.20.1</p><p>FLYWAY_CLEAN_DISABLED=true</p>"
+    },
+    {
+      "id": "1d8db82e-535e-4541-86c9-d5d068ea6730",
+      "name": "MySQL dev",
+      "icon": "storage",
+      "description": "<p>environment: dev</p><p>Esquema en la EC2 compartida</p>"
+    },
+    {
+      "id": "336bc4d8-eebb-438d-b79b-0882d9e693f8",
+      "name": "MySQL testing",
+      "icon": "storage",
+      "description": "<p>environment: test</p><p>Mismo host que dev - espera aprobacion</p>"
+    },
+    {
+      "id": "b8cb5167-4a87-4105-acf0-67656a906365",
+      "name": "MySQL Safi",
+      "icon": "aws-rds-on-vmware",
+      "description": "<p>environment: production</p><p>Host aparte - espera aprobacion</p>"
+    },
+    {
+      "id": "reviewer-prod",
+      "name": "Reviewer requerido",
+      "icon": "user",
+      "description": "<p>environment: production - protection rule</p>"
+    },
+    {
+      "id": "reviewer-test",
+      "name": "Reviewer requerido",
+      "icon": "user",
+      "description": "<p>environment: test - protection rule</p>"
+    }
+  ],
+  "views": [
+    {
+      "id": "8a0a5309-6266-409f-b071-97dd7cf55910",
+      "name": "Arquitectura",
+      "items": [
+        {
+          "labelHeight": 80,
+          "id": "83f4b023-2b2a-40ea-bcf0-d03a26f479d0",
+          "tile": {
+            "x": -24,
+            "y": -2
+          }
+        },
+        {
+          "labelHeight": 120,
+          "id": "6c569cce-3c46-4697-97c8-981154c8be57",
+          "tile": {
+            "x": -21,
+            "y": -2
+          }
+        },
+        {
+          "labelHeight": 260,
+          "id": "5bb977e1-9688-4b68-8481-d6681565c1c8",
+          "tile": {
+            "x": -21,
+            "y": 0
+          }
+        },
+        {
+          "labelHeight": 80,
+          "id": "2d40ed89-c906-4115-97e5-d7eb7ed0ec1b",
+          "tile": {
+            "x": -17,
+            "y": -2
+          }
+        },
+        {
+          "labelHeight": 160,
+          "id": "a93d5438-0900-4c9c-aa82-0f75378bcc99",
+          "tile": {
+            "x": -13,
+            "y": 0
+          }
+        },
+        {
+          "labelHeight": 80,
+          "id": "88a3fd43-fa67-4008-9d96-e4985cf8a58e",
+          "tile": {
+            "x": -13,
+            "y": -2
+          }
+        },
+        {
+          "labelHeight": 80,
+          "id": "cc457ec0-914f-4447-80a3-3deb0a21ec92",
+          "tile": {
+            "x": -14,
+            "y": -6
+          }
+        },
+        {
+          "labelHeight": 80,
+          "id": "44067b3b-2c98-4386-8395-353c6bec85d9",
+          "tile": {
+            "x": -7,
+            "y": 5
+          }
+        },
+        {
+          "labelHeight": 80,
+          "id": "93914f2e-935e-44fc-8fe1-860476685f25",
+          "tile": {
+            "x": 1,
+            "y": 4
+          }
+        },
+        {
+          "labelHeight": 100,
+          "id": "wf-flyway-migrate",
+          "tile": {
+            "x": -7,
+            "y": -4
+          }
+        },
+        {
+          "labelHeight": 200,
+          "id": "9313a642-f337-4075-af4e-25c0b7b3bcf9",
+          "tile": {
+            "x": -6,
+            "y": -6
+          }
+        },
+        {
+          "labelHeight": 40,
+          "id": "83710468-d7f2-4137-bf61-23a97b59f13e",
+          "tile": {
+            "x": -7,
+            "y": -8
+          }
+        },
+        {
+          "labelHeight": 100,
+          "id": "1d8db82e-535e-4541-86c9-d5d068ea6730",
+          "tile": {
+            "x": -5,
+            "y": -14
+          }
+        },
+        {
+          "labelHeight": 120,
+          "id": "336bc4d8-eebb-438d-b79b-0882d9e693f8",
+          "tile": {
+            "x": -2,
+            "y": -13
+          }
+        },
+        {
+          "labelHeight": 100,
+          "id": "b8cb5167-4a87-4105-acf0-67656a906365",
+          "tile": {
+            "x": -2,
+            "y": -4
+          }
+        },
+        {
+          "labelHeight": 200,
+          "id": "reviewer-prod",
+          "tile": {
+            "x": 2,
+            "y": -4
+          }
+        },
+        {
+          "labelHeight": 60,
+          "id": "reviewer-test",
+          "tile": {
+            "x": 0,
+            "y": -14
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "abc7bcca-a83c-4087-ae11-7cd7180e7ea6",
+          "color": "color1",
+          "anchors": [
+            {
+              "id": "2fa28971-021a-46b5-8ad1-dd960b8453e0",
+              "ref": {
+                "item": "83f4b023-2b2a-40ea-bcf0-d03a26f479d0"
+              }
+            },
+            {
+              "id": "48a82d7d-57df-48a9-8fbb-1dda1575ab24",
+              "ref": {
+                "item": "6c569cce-3c46-4697-97c8-981154c8be57"
+              }
+            }
+          ]
+        },
+        {
+          "id": "00bf9c45-eb50-4414-91b3-a4130af9f3a0",
+          "color": "color1",
+          "anchors": [
+            {
+              "id": "3a1678ca-48a1-4f31-85a5-74245c99d64b",
+              "ref": {
+                "item": "6c569cce-3c46-4697-97c8-981154c8be57"
+              }
+            },
+            {
+              "id": "8fc85a99-5198-4a5b-bcab-f34fa1b36a88",
+              "ref": {
+                "item": "5bb977e1-9688-4b68-8481-d6681565c1c8"
+              }
+            }
+          ]
+        },
+        {
+          "id": "b07b929b-4c94-4d8e-8794-9c0aaf24f441",
+          "color": "color1",
+          "anchors": [
+            {
+              "id": "138f6e40-d7ef-49f5-aa50-c3c7c540f971",
+              "ref": {
+                "item": "5bb977e1-9688-4b68-8481-d6681565c1c8"
+              }
+            },
+            {
+              "id": "02faf0da-1e73-4b56-9e05-002549715609",
+              "ref": {
+                "item": "2d40ed89-c906-4115-97e5-d7eb7ed0ec1b"
+              }
+            }
+          ]
+        },
+        {
+          "id": "0451f940-78b0-4a09-94ee-9bba8991d849",
+          "color": "color1",
+          "anchors": [
+            {
+              "id": "6582f858-fd11-422e-a93c-d05a931da771",
+              "ref": {
+                "item": "2d40ed89-c906-4115-97e5-d7eb7ed0ec1b"
+              }
+            },
+            {
+              "id": "a01778cb-32cd-4fd4-9f0e-235757e6ea57",
+              "ref": {
+                "item": "a93d5438-0900-4c9c-aa82-0f75378bcc99"
+              }
+            }
+          ]
+        },
+        {
+          "id": "7d19fd17-58c7-46eb-ae58-3c4fdd0c32b2",
+          "color": "color1",
+          "style": "DASHED",
+          "anchors": [
+            {
+              "id": "6357bf0b-69e9-4832-941e-8a2c7ccef792",
+              "ref": {
+                "item": "a93d5438-0900-4c9c-aa82-0f75378bcc99"
+              }
+            },
+            {
+              "id": "ceac3d47-6240-4256-bd3d-95a028a79c7d",
+              "ref": {
+                "item": "88a3fd43-fa67-4008-9d96-e4985cf8a58e"
+              }
+            }
+          ]
+        },
+        {
+          "id": "b2b8f625-584e-4a44-b8c2-65c4e9caac70",
+          "color": "color1",
+          "anchors": [
+            {
+              "id": "9529f3dc-554d-4eba-8aeb-05d11a8ef427",
+              "ref": {
+                "item": "2d40ed89-c906-4115-97e5-d7eb7ed0ec1b"
+              }
+            },
+            {
+              "id": "24177e03-55cd-475a-9802-42cbb23e23b9",
+              "ref": {
+                "item": "cc457ec0-914f-4447-80a3-3deb0a21ec92"
+              }
+            }
+          ]
+        },
+        {
+          "id": "conn-cross-vpc",
+          "color": "color6",
+          "width": 20,
+          "description": "Unica entrada a la VPC",
+          "anchors": [
+            {
+              "id": "anchor-cross-1",
+              "ref": {
+                "item": "cc457ec0-914f-4447-80a3-3deb0a21ec92"
+              }
+            },
+            {
+              "id": "anchor-cross-2",
+              "ref": {
+                "item": "wf-flyway-migrate"
+              }
+            }
+          ]
+        },
+        {
+          "id": "conn-wf-runner",
+          "color": "color1",
+          "anchors": [
+            {
+              "id": "anchor-wfr-1",
+              "ref": {
+                "item": "wf-flyway-migrate"
+              }
+            },
+            {
+              "id": "anchor-wfr-2",
+              "ref": {
+                "item": "9313a642-f337-4075-af4e-25c0b7b3bcf9"
+              }
+            }
+          ]
+        },
+        {
+          "id": "conn-runner-flyway",
+          "color": "color1",
+          "style": "DOTTED",
+          "anchors": [
+            {
+              "id": "anchor-rf-1",
+              "ref": {
+                "item": "9313a642-f337-4075-af4e-25c0b7b3bcf9"
+              }
+            },
+            {
+              "id": "anchor-rf-2",
+              "ref": {
+                "item": "83710468-d7f2-4137-bf61-23a97b59f13e"
+              }
+            }
+          ]
+        },
+        {
+          "id": "1cc01db6-ddfe-4c40-9116-be67b216a3ea",
+          "color": "color1",
+          "anchors": [
+            {
+              "id": "8915a08a-32c5-4746-8a2d-e3bac24f244d",
+              "ref": {
+                "item": "9313a642-f337-4075-af4e-25c0b7b3bcf9"
+              },
+              "ordering": 0
+            },
+            {
+              "id": "7939efff-5ef5-4937-bcc5-97e3346ef575",
+              "ref": {
+                "tile": {
+                  "x": -5,
+                  "y": -9
+                }
+              },
+              "ordering": 3
+            },
+            {
+              "id": "d63fd777-1319-460e-8602-dc04909055da",
+              "ref": {
+                "item": "1d8db82e-535e-4541-86c9-d5d068ea6730"
+              },
+              "ordering": 4
+            }
+          ]
+        },
+        {
+          "id": "4b96f0fc-1720-4bc6-b198-0698dd0a7503",
+          "color": "color4",
+          "anchors": [
+            {
+              "id": "8772e6bd-3f16-4e74-afae-b8900315d357",
+              "ref": {
+                "item": "1d8db82e-535e-4541-86c9-d5d068ea6730"
+              }
+            },
+            {
+              "id": "a8bd3abd-4603-4790-bfa2-65b93a05bde2",
+              "ref": {
+                "item": "336bc4d8-eebb-438d-b79b-0882d9e693f8"
+              }
+            }
+          ],
+          "style": "DASHED",
+          "description": "Waiting for approval"
+        },
+        {
+          "id": "conn-test-prod",
+          "color": "color4",
+          "style": "DASHED",
+          "description": "Waiting for approval",
+          "anchors": [
+            {
+              "id": "anchor-tp-1",
+              "ref": {
+                "item": "336bc4d8-eebb-438d-b79b-0882d9e693f8"
+              }
+            },
+            {
+              "id": "anchor-tp-2",
+              "ref": {
+                "item": "b8cb5167-4a87-4105-acf0-67656a906365"
+              }
+            }
+          ]
+        },
+        {
+          "id": "conn-reviewer-prod",
+          "color": "color4",
+          "style": "DASHED",
+          "anchors": [
+            {
+              "id": "anchor-rp-1",
+              "ref": {
+                "item": "reviewer-prod"
+              }
+            },
+            {
+              "id": "anchor-rp-2",
+              "ref": {
+                "item": "b8cb5167-4a87-4105-acf0-67656a906365"
+              }
+            }
+          ]
+        },
+        {
+          "id": "conn-reviewer-test",
+          "color": "color4",
+          "style": "DASHED",
+          "anchors": [
+            {
+              "id": "anchor-rt-1",
+              "ref": {
+                "item": "reviewer-test"
+              },
+              "ordering": 0
+            },
+            {
+              "id": "12a3a377-aede-4cb8-a0b7-0a85bbfd9d44",
+              "ref": {
+                "tile": {
+                  "x": -1,
+                  "y": -12
+                }
+              },
+              "ordering": 1
+            },
+            {
+              "id": "anchor-rt-2",
+              "ref": {
+                "item": "336bc4d8-eebb-438d-b79b-0882d9e693f8"
+              },
+              "ordering": 2
+            }
+          ],
+          "width": 10,
+          "description": "",
+          "path": {
+            "tiles": [
+              {
+                "x": 1,
+                "y": 1
+              },
+              {
+                "x": 2,
+                "y": 2
+              },
+              {
+                "x": 2,
+                "y": 2
+              },
+              {
+                "x": 3,
+                "y": 1
+              }
+            ],
+            "rectangle": {
+              "from": {
+                "x": 1,
+                "y": -9
+              },
+              "to": {
+                "x": -3,
+                "y": -12
+              }
+            }
+          }
+        }
+      ],
+      "rectangles": [
+        {
+          "id": "1d03eb29-125b-4f49-a6f2-2f9031951636",
+          "color": "color1",
+          "from": {
+            "x": -7,
+            "y": 5
+          },
+          "to": {
+            "x": 6,
+            "y": -16
+          }
+        },
+        {
+          "id": "67c435d4-2bc2-4f4e-9c0f-270dfadeede6",
+          "color": "color2",
+          "from": {
+            "x": -18,
+            "y": 2
+          },
+          "to": {
+            "x": -11,
+            "y": -8
+          }
+        },
+        {
+          "id": "45c83caf-9b55-4c24-a845-9b67da71dd7d",
+          "color": "color7",
+          "from": {
+            "x": -20,
+            "y": 1
+          },
+          "to": {
+            "x": -24,
+            "y": -5
+          }
+        },
+        {
+          "id": "rect-ec2-db",
+          "color": "color5",
+          "from": {
+            "x": -6,
+            "y": -12
+          },
+          "to": {
+            "x": -1,
+            "y": -15
+          }
+        }
+      ],
+      "textBoxes": [
+        {
+          "id": "txt-local",
+          "tile": {
+            "x": -24,
+            "y": 1
+          },
+          "content": "LOCAL",
+          "fontSize": 0.7,
+          "orientation": "X"
+        },
+        {
+          "id": "txt-github",
+          "tile": {
+            "x": -18,
+            "y": 1
+          },
+          "content": "GITHUB (nube publica)",
+          "fontSize": 0.7,
+          "orientation": "X"
+        },
+        {
+          "id": "txt-vpc",
+          "tile": {
+            "x": -7,
+            "y": 4
+          },
+          "content": "VPC INTERNA (AWS)",
+          "fontSize": 0.7,
+          "orientation": "X"
+        },
+        {
+          "id": "txt-approval",
+          "tile": {
+            "x": -1,
+            "y": -5
+          },
+          "content": "Waiting for approval",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "txt-no-db",
+          "tile": {
+            "x": -11,
+            "y": -3
+          },
+          "content": "Ninguna base real",
+          "fontSize": 0.5,
+          "orientation": "X"
+        },
+        {
+          "id": "txt-approval-test",
+          "tile": {
+            "x": -4,
+            "y": -15
+          },
+          "content": "Waiting for approval",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "txt-ec2",
+          "tile": {
+            "x": -6,
+            "y": -11
+          },
+          "content": "EC2 unica - dev + test",
+          "fontSize": 0.6,
+          "orientation": "X"
+        }
+      ],
+      "lastUpdated": "2026-09-21T00:05:32.553Z"
+    }
+  ],
+  "icons": []
+}

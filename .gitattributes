@@ -1,0 +1,26 @@
+# Normalize text files to LF in the repository and in the working tree.
+#
+# Committed blobs are already LF. Without this file, a checkout on a machine with
+# core.autocrlf=true rewrites them as CRLF on disk, and prettier/prettier then
+# reports "Delete CR" on every line of every file (10276 such errors before this
+# was added). Settings here take precedence over core.autocrlf, so the working
+# tree stays LF regardless of each developer's local git configuration.
+* text=auto eol=lf
+
+# Binary assets must never be line-ending normalized. None are tracked today,
+# but isopack icons and fonts are the likely additions.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.otf   binary
+*.pdf   binary
+
+# Lockfiles are generated: keep them out of diff noise and language stats.
+package-lock.json linguist-generated=true -diff

@@ -10,13 +10,16 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/Isoflow.d.ts",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "webpack serve --config ./webpack/dev.config.js",
     "dev": "nodemon --watch ./src/ -e ts,tsx --exec npm run build",
     "build": "webpack --config ./webpack/prod.config.js && tsc --declaration --emitDeclarationOnly && tsc-alias",
     "test": "jest",
-    "lint": "tsc --noEmit && eslint ./src/**/* --ext .ts,.tsx",
-    "lint:fix": "eslint --fix ./src/**/* --ext .ts,.tsx",
+    "lint": "tsc --noEmit && eslint ./src --ext .ts,.tsx",
+    "lint:fix": "eslint --fix ./src --ext .ts,.tsx",
     "docker:build": "webpack --config ./webpack/docker.config.js"
   },
   "devDependencies": {
@@ -54,7 +57,6 @@
     "prettier": "^3.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "recharts": "^2.7.2",
     "style-loader": "^3.3.3",
     "ts-jest": "^29.0.5",
     "ts-loader": "^9.4.2",
@@ -63,7 +65,7 @@
     "typescript": "^5.1.6",
     "webpack": "^5.76.2",
     "webpack-cli": "^5.0.1",
-    "webpack-dev-server": "^4.15.1"
+    "webpack-dev-server": "^6.0.0"
   },
   "dependencies": {
     "@emotion/react": "^11.10.6",
@@ -81,9 +83,8 @@
     "pathfinding": "^0.4.18",
     "react-hook-form": "^7.43.2",
     "react-quill": "^2.0.0",
-    "react-router-dom": "^6.8.1",
-    "uuid": "^9.0.0",
-    "zod": "3.22.2",
+    "uuid": "^11.1.1",
+    "zod": "^3.25.76",
     "zustand": "^4.3.3"
   },
   "peerDependencies": {
