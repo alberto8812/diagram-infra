@@ -4,6 +4,7 @@ import { model as modelFixture } from '../../fixtures/model';
 import { validateModel } from '../validation';
 import { connectorSchema } from '../connector';
 import { flowSchema } from '../flow';
+import { modelItemSchema } from '../modelItems';
 
 describe('Model validation works correctly', () => {
   test('Model fixture is valid', () => {
@@ -256,5 +257,173 @@ describe('Model validation works correctly', () => {
     const issues = validateModel(model);
 
     expect(issues.length).toStrictEqual(0);
+  });
+
+  test('A model item with all resource fields set is valid', () => {
+    const result = modelItemSchema.safeParse({
+      id: 'resourceItem',
+      name: 'API',
+      kind: 'service',
+      environment: 'prod',
+      engine: 'node',
+      version: '20',
+      region: 'us-east-1',
+      owner: 'platform-team',
+      port: 8080
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test('A model item without any resource fields is still valid', () => {
+    const model = produce(modelFixture, (draft) => {
+      draft.items.push({ id: 'plainItem', name: 'Plain item' });
+    });
+
+    const issues = validateModel(model);
+
+    expect(issues.length).toStrictEqual(0);
+  });
+
+  test('A model item with an invalid kind fails validation', () => {
+    const result = modelItemSchema.safeParse({
+      id: 'invalidKindItem',
+      name: 'Invalid kind',
+      kind: 'container'
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A model item with an invalid environment fails validation', () => {
+    const result = modelItemSchema.safeParse({
+      id: 'invalidEnvironmentItem',
+      name: 'Invalid environment',
+      environment: 'staging'
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A model item with port 0 fails validation', () => {
+    const result = modelItemSchema.safeParse({
+      id: 'invalidPortLowItem',
+      name: 'Invalid low port',
+      port: 0
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A model item with port 70000 fails validation', () => {
+    const result = modelItemSchema.safeParse({
+      id: 'invalidPortHighItem',
+      name: 'Invalid high port',
+      port: 70000
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A model item with a non-integer port fails validation', () => {
+    const result = modelItemSchema.safeParse({
+      id: 'invalidPortFractionItem',
+      name: 'Invalid fractional port',
+      port: 1.5
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with all semantic fields set is valid', () => {
+    const result = connectorSchema.safeParse({
+      id: 'semanticConnector',
+      anchors: [],
+      protocol: 'HTTPS',
+      port: 443,
+      mode: 'async',
+      auth: 'mtls'
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test('A connector without any semantic fields is still valid', () => {
+    const model = produce(modelFixture, (draft) => {
+      draft.views[0].connectors = [
+        ...(draft.views[0].connectors ?? []),
+        {
+          id: 'plainConnector',
+          anchors: [
+            { id: 'plainAnch1', ref: { item: 'node1' } },
+            { id: 'plainAnch2', ref: { item: 'node2' } }
+          ]
+        }
+      ];
+    });
+
+    const issues = validateModel(model);
+
+    expect(issues.length).toStrictEqual(0);
+  });
+
+  test('A connector with an invalid protocol fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidProtocolConnector',
+      anchors: [],
+      protocol: 'FTP'
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with an invalid mode fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidModeConnector',
+      anchors: [],
+      mode: 'fireAndForget'
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with an invalid auth fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidAuthConnector',
+      anchors: [],
+      auth: 'oauth2'
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with port 0 fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidPortLowConnector',
+      anchors: [],
+      port: 0
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with port 70000 fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidPortHighConnector',
+      anchors: [],
+      port: 70000
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with a non-integer port fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidPortFractionConnector',
+      anchors: [],
+      port: 1.5
+    });
+
+    expect(result.success).toBe(false);
   });
 });

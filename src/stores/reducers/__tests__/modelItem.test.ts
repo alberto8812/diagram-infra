@@ -45,6 +45,24 @@ describe('Model item reducers works correctly', () => {
     expect(updatedItem.value.name).toBe(updates.name);
   });
 
+  test('Item is updated with resource metadata correctly', () => {
+    const nodeId = 'node1';
+    const updates: Partial<ModelItem> = {
+      kind: 'database',
+      port: 5432
+    };
+
+    const newState = updateModelItem(nodeId, updates, {
+      model: modelFixture,
+      scene
+    });
+
+    const updatedItem = getItemByIdOrThrow(newState.model.items, nodeId);
+
+    expect(updatedItem.value.kind).toBe('database');
+    expect(updatedItem.value.port).toBe(5432);
+  });
+
   test('Item is deleted correctly', () => {
     const nodeId = 'node1';
 

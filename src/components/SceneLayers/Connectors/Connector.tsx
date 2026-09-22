@@ -8,7 +8,8 @@ import {
   getConnectorDirectionIcon,
   getPacketPathPoints,
   getPacketDestinationItemId,
-  getStepDurationMs
+  getStepDurationMs,
+  getPacketLabel
 } from 'src/utils';
 import { Circle } from 'src/components/Circle/Circle';
 import { Svg } from 'src/components/Svg/Svg';
@@ -205,7 +206,12 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
       stepId: currentStep.id,
       points: packetPoints,
       color: packetColor,
-      label: currentStep.label,
+      // Falls back to the connector's protocol (roadmap item 2) when the
+      // step itself has no label.
+      label: getPacketLabel(currentStep, {
+        protocol: connector.protocol,
+        port: connector.port
+      }),
       // The step's own duration at speed 1x - ConnectorPacket applies the
       // current speed to the running tween via `timeScale()` instead of
       // rebuilding it, so a speed change mid-flight doesn't restart the
@@ -219,6 +225,8 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
     packetPoints,
     currentStep,
     connector.anchors,
+    connector.protocol,
+    connector.port,
     theme.palette.primary.main,
     theme.palette.secondary.main,
     flowPlayback.speed

@@ -3,7 +3,8 @@ import {
   findFlowStepConnector,
   getConnectorEndpointLabel,
   buildReturnPathSteps,
-  getMissingReturnPathSteps
+  getMissingReturnPathSteps,
+  getPacketLabel
 } from '../flow';
 
 const connector = (id: string, anchors: Connector['anchors']): Connector => {
@@ -72,6 +73,40 @@ describe('getConnectorEndpointLabel() works correctly', () => {
   });
 });
 
+describe('getPacketLabel() works correctly', () => {
+  test('returns the step label when it is set, ignoring the connector', () => {
+    const step: Pick<FlowStep, 'label'> = { label: 'Get users' };
+    const conn: Pick<Connector, 'protocol' | 'port'> = {
+      protocol: 'HTTPS',
+      port: 443
+    };
+
+    expect(getPacketLabel(step, conn)).toBe('Get users');
+  });
+
+  test('falls back to "protocol:port" when the step has no label', () => {
+    const step: Pick<FlowStep, 'label'> = {};
+    const conn: Pick<Connector, 'protocol' | 'port'> = {
+      protocol: 'HTTPS',
+      port: 443
+    };
+
+    expect(getPacketLabel(step, conn)).toBe('HTTPS:443');
+  });
+
+  test('falls back to just the protocol when the connector has no port', () => {
+    const step: Pick<FlowStep, 'label'> = {};
+    const conn: Pick<Connector, 'protocol' | 'port'> = { protocol: 'gRPC' };
+
+    expect(getPacketLabel(step, conn)).toBe('gRPC');
+  });
+
+  test('returns undefined when neither a label nor a protocol is set', () => {
+    expect(getPacketLabel({}, {})).toBeUndefined();
+    expect(getPacketLabel(undefined, undefined)).toBeUndefined();
+  });
+});
+
 describe('buildReturnPathSteps() works correctly', () => {
   const makeCounter = () => {
     let n = 0;
@@ -132,6 +167,55 @@ describe('buildReturnPathSteps() works correctly', () => {
       }
     ]);
   });
+
+  test('skips REQUEST steps whose connector is async (fire-and-forget)', () => {
+    const asyncConn = connector('conn1', []);
+    asyncConn.mode = 'async';
+    const syncConn = connector('conn2', []);
+
+    const views = [
+      {
+        id: 'view1',
+        name: 'View 1',
+        connectors: [asyncConn, syncConn]
+      }
+    ] as unknown as View[];
+
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 's2', connectorId: 'conn2', direction: 'REQUEST' }
+    ];
+
+    expect(buildReturnPathSteps(steps, makeCounter(), views)).toStrictEqual([
+      { id: 'generated-1', connectorId: 'conn2', direction: 'RESPONSE' }
+    ]);
+  });
+
+  test('keeps existing (sync) behavior for a step whose connector has no mode', () => {
+    const undefinedModeConn = connector('conn1', []);
+
+    const views = [
+      { id: 'view1', name: 'View 1', connectors: [undefinedModeConn] }
+    ] as unknown as View[];
+
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST' }
+    ];
+
+    expect(buildReturnPathSteps(steps, makeCounter(), views)).toStrictEqual([
+      { id: 'generated-1', connectorId: 'conn1', direction: 'RESPONSE' }
+    ]);
+  });
+
+  test('keeps existing (sync) behavior when views are omitted', () => {
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST' }
+    ];
+
+    expect(buildReturnPathSteps(steps, makeCounter())).toStrictEqual([
+      { id: 'generated-1', connectorId: 'conn1', direction: 'RESPONSE' }
+    ]);
+  });
 });
 
 describe('getMissingReturnPathSteps() works correctly', () => {
@@ -184,5 +268,30 @@ describe('getMissingReturnPathSteps() works correctly', () => {
 
   test('returns an empty array when there are no REQUEST steps', () => {
     expect(getMissingReturnPathSteps([], makeCounter())).toStrictEqual([]);
+  });
+
+  test('skips an async connector request when adding the missing return path', () => {
+    const asyncConn = connector('conn1', []);
+    asyncConn.mode = 'async';
+    const syncConn = connector('conn2', []);
+
+    const views = [
+      {
+        id: 'view1',
+        name: 'View 1',
+        connectors: [asyncConn, syncConn]
+      }
+    ] as unknown as View[];
+
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 's2', connectorId: 'conn2', direction: 'REQUEST' }
+    ];
+
+    expect(
+      getMissingReturnPathSteps(steps, makeCounter(), views)
+    ).toStrictEqual([
+      { id: 'generated-1', connectorId: 'conn2', direction: 'RESPONSE' }
+    ]);
   });
 });
