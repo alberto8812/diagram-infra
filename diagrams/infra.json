@@ -181,16 +181,6 @@
       "icon": "user",
       "description": "<p>environment: test - protection rule</p>",
       "kind": "user"
-    },
-    {
-      "id": "d8820ba7-cc07-44b5-b998-ded0c7e5a895",
-      "name": "Untitled",
-      "icon": "k8s-c-c-m"
-    },
-    {
-      "id": "92b0bc2a-6e44-43e3-bfd4-bfa74fb91d26",
-      "name": "Untitled",
-      "icon": "azure-abs-member"
     }
   ],
   "views": [
@@ -337,7 +327,7 @@
       ],
       "connectors": [
         {
-          "id": "c9a59d19-bf5a-44f8-b93e-8e83db365536",
+          "id": "conn-wf-runner",
           "color": "color1",
           "anchors": [
             {
@@ -358,7 +348,8 @@
           "description": "send-call-to-runner",
           "protocol": "HTTPS",
           "mode": "async",
-          "auth": "token"
+          "auth": "token",
+          "direction": "FORWARD"
         },
         {
           "id": "abc7bcca-a83c-4087-ae11-7cd7180e7ea6",
@@ -648,16 +639,6 @@
               "ordering": 4
             },
             {
-              "id": "630cca46-26a6-485a-8cb4-57a1a8c1ab0b",
-              "ref": {
-                "tile": {
-                  "x": -3,
-                  "y": -8
-                }
-              },
-              "ordering": 8
-            },
-            {
               "id": "7939efff-5ef5-4937-bcc5-97e3346ef575",
               "ref": {
                 "tile": {
@@ -679,13 +660,6 @@
             },
             {
               "id": "4e4e4fef-fa32-4fea-a3db-725e8f3bb991",
-              "ref": {
-                "item": "1d8db82e-535e-4541-86c9-d5d068ea6730"
-              },
-              "ordering": 14
-            },
-            {
-              "id": "d63fd777-1319-460e-8602-dc04909055da",
               "ref": {
                 "item": "1d8db82e-535e-4541-86c9-d5d068ea6730"
               },
@@ -1196,35 +1170,16 @@
           "label": "PR listo para merge"
         },
         {
-          "id": "0f7bb689-f8c6-4f64-be3a-0a9fd68251d4",
-          "connectorId": "7d19fd17-58c7-46eb-ae58-3c4fdd0c32b2",
-          "direction": "RESPONSE",
-          "label": "flyway migrate + tests",
-          "durationMs": 1600
-        },
-        {
-          "id": "c363bcbd-16fb-40ea-bc18-2f7e72cf021b",
-          "connectorId": "0451f940-78b0-4a09-94ee-9bba8991d849",
-          "direction": "RESPONSE",
-          "label": "Dispara pr-check.yml"
-        },
-        {
-          "id": "c07ff5dd-2b15-46e2-bb96-8193ef107df3",
-          "connectorId": "b07b929b-4c94-4d8e-8794-9c0aaf24f441",
-          "direction": "RESPONSE",
-          "label": "git push rama feature"
-        },
-        {
           "id": "48a88df6-0c7a-4e91-8a0b-d957183ecd46",
           "connectorId": "00bf9c45-eb50-4414-91b3-a4130af9f3a0",
           "direction": "RESPONSE",
-          "label": "git commit"
+          "label": "Estado del PR"
         },
         {
           "id": "5d14440b-a409-4a1a-8cce-430239e9771d",
           "connectorId": "abc7bcca-a83c-4087-ae11-7cd7180e7ea6",
           "direction": "RESPONSE",
-          "label": "Edita el procedure"
+          "label": "Notifica al desarrollador"
         }
       ]
     },
@@ -1247,10 +1202,10 @@
         },
         {
           "id": "018ebd53-be9d-44bd-926b-dd29cb5b0db1",
-          "connectorId": "c9a59d19-bf5a-44f8-b93e-8e83db365536",
+          "connectorId": "conn-wf-runner",
           "direction": "REQUEST",
           "label": "accionar runner",
-          "durationMs": 2
+          "durationMs": 1600
         },
         {
           "id": "step-12",
@@ -1266,17 +1221,17 @@
           "durationMs": 1600
         },
         {
+          "id": "step-14",
+          "connectorId": "1cc01db6-ddfe-4c40-9116-be67b216a3ea",
+          "direction": "RESPONSE",
+          "label": "dev OK"
+        },
+        {
           "id": "step-15",
           "connectorId": "conn-reviewer-test",
           "direction": "REQUEST",
           "label": "Aprueba testing",
           "durationMs": 1800
-        },
-        {
-          "id": "step-14",
-          "connectorId": "1cc01db6-ddfe-4c40-9116-be67b216a3ea",
-          "direction": "RESPONSE",
-          "label": "dev OK"
         },
         {
           "id": "step-16",
@@ -1316,6 +1271,12 @@
           "connectorId": "1cc01db6-ddfe-4c40-9116-be67b216a3ea",
           "direction": "RESPONSE",
           "label": "Estado"
+        },
+        {
+          "id": "step-22",
+          "connectorId": "conn-wf-runner",
+          "direction": "RESPONSE",
+          "label": "Estado del runner"
         },
         {
           "id": "step-23",
