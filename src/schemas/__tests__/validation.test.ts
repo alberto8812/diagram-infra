@@ -334,4 +334,96 @@ describe('Model validation works correctly', () => {
 
     expect(result.success).toBe(false);
   });
+
+  test('A connector with all semantic fields set is valid', () => {
+    const result = connectorSchema.safeParse({
+      id: 'semanticConnector',
+      anchors: [],
+      protocol: 'HTTPS',
+      port: 443,
+      mode: 'async',
+      auth: 'mtls'
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test('A connector without any semantic fields is still valid', () => {
+    const model = produce(modelFixture, (draft) => {
+      draft.views[0].connectors = [
+        ...(draft.views[0].connectors ?? []),
+        {
+          id: 'plainConnector',
+          anchors: [
+            { id: 'plainAnch1', ref: { item: 'node1' } },
+            { id: 'plainAnch2', ref: { item: 'node2' } }
+          ]
+        }
+      ];
+    });
+
+    const issues = validateModel(model);
+
+    expect(issues.length).toStrictEqual(0);
+  });
+
+  test('A connector with an invalid protocol fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidProtocolConnector',
+      anchors: [],
+      protocol: 'FTP'
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with an invalid mode fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidModeConnector',
+      anchors: [],
+      mode: 'fireAndForget'
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with an invalid auth fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidAuthConnector',
+      anchors: [],
+      auth: 'oauth2'
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with port 0 fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidPortLowConnector',
+      anchors: [],
+      port: 0
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with port 70000 fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidPortHighConnector',
+      anchors: [],
+      port: 70000
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('A connector with a non-integer port fails validation', () => {
+    const result = connectorSchema.safeParse({
+      id: 'invalidPortFractionConnector',
+      anchors: [],
+      port: 1.5
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

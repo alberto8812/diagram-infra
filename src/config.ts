@@ -47,13 +47,26 @@ export const VIEW_ITEM_DEFAULTS: Required<Omit<ViewItem, 'id' | 'tile'>> = {
   labelHeight: 80
 };
 
-export const CONNECTOR_DEFAULTS: Required<Omit<Connector, 'id' | 'color'>> = {
+// `protocol`, `port` and `auth` (roadmap item 2, src/schemas/connector.ts)
+// are deliberately excluded here instead of given an invented value: this
+// object gets spread onto every connector wherever it's read (see
+// src/hooks/useScene.ts `connectors`), and that merged value is what gets
+// written back to the model on interactions like dragging a connector
+// anchor (src/interaction/modes/DragItems.ts). A concrete protocol/port/auth
+// has no neutral choice and would silently start writing onto connectors
+// that never had one set. `mode: 'sync'` is safe to default because it
+// matches the existing (pre-this-feature) simulation behavior for a
+// connector with no mode set.
+export const CONNECTOR_DEFAULTS: Required<
+  Omit<Connector, 'id' | 'color' | 'protocol' | 'port' | 'auth'>
+> = {
   width: 10,
   description: '',
   anchors: [],
   style: 'SOLID',
   animated: false,
-  direction: 'FORWARD'
+  direction: 'FORWARD',
+  mode: 'sync'
 };
 
 // The boundaries of the search area for the pathfinder algorithm

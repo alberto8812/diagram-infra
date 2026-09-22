@@ -54,17 +54,41 @@ export const getConnectorEndpointLabel = (
   return `${from} -> ${to}`;
 };
 
+// Packet label shown while a flow step plays: the step's own label when set,
+// otherwise a fallback derived from the step's connector protocol (roadmap
+// item 2) — "HTTPS:443" when a port is set, "HTTPS" otherwise. Returns
+// undefined when neither is available, same as an unlabeled step today.
+export const getPacketLabel = (
+  step: Pick<FlowStep, 'label'> | undefined,
+  connector: Pick<Connector, 'protocol' | 'port'> | undefined
+): string | undefined => {
+  if (step?.label) return step.label;
+  if (!connector?.protocol) return undefined;
+
+  return connector.port !== undefined
+    ? `${connector.protocol}:${connector.port}`
+    : connector.protocol;
+};
+
 // "Add return path": appends a RESPONSE step for every existing REQUEST step
 // of the flow, in reverse order (the request travels to the final node, the
 // response returns the way it came). Each existing step's connector and
 // label carry over; `makeId` is injected so this stays pure/testable.
+// `views` (optional, default none) resolves each step's connector so a
+// connector with `mode: 'async'` (roadmap item 2, fire-and-forget) can be
+// skipped — no response is expected for it. Omitting `views` preserves
+// existing (sync) behavior for every step.
 export const buildReturnPathSteps = (
   steps: FlowStep[],
-  makeId: () => string
+  makeId: () => string,
+  views: View[] = []
 ): FlowStep[] => {
   return steps
     .filter((step) => {
-      return step.direction === 'REQUEST';
+      if (step.direction !== 'REQUEST') return false;
+
+      const connector = findFlowStepConnector(views, step);
+      return connector?.mode !== 'async';
     })
     .slice()
     .reverse()
@@ -104,11 +128,16 @@ const isSameStepContent = (a: FlowStep, b: FlowStep): boolean => {
 // re-running it after a partial/edited mirror only fills in what's missing.
 export const getMissingReturnPathSteps = (
   steps: FlowStep[],
-  makeId: () => string
+  makeId: () => string,
+  views: View[] = []
 ): FlowStep[] => {
-  const candidates = buildReturnPathSteps(steps, () => {
-    return '';
-  });
+  const candidates = buildReturnPathSteps(
+    steps,
+    () => {
+      return '';
+    },
+    views
+  );
 
   if (candidates.length === 0) return [];
 

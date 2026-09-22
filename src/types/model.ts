@@ -21,7 +21,10 @@ import {
   flowStepDirectionOptions,
   iconStyleOptions,
   resourceKindOptions,
-  environmentOptions
+  environmentOptions,
+  connectorProtocolOptions,
+  connectorModeOptions,
+  connectorAuthOptions
 } from 'src/schemas';
 import { StoreApi } from 'zustand';
 
@@ -31,6 +34,9 @@ export { flowStepDirectionOptions } from 'src/schemas';
 export { iconStyleOptions } from 'src/schemas';
 export { resourceKindOptions } from 'src/schemas';
 export { environmentOptions } from 'src/schemas';
+export { connectorProtocolOptions } from 'src/schemas';
+export { connectorModeOptions } from 'src/schemas';
+export { connectorAuthOptions } from 'src/schemas';
 export type Model = z.infer<typeof modelSchema>;
 export type ModelItems = z.infer<typeof modelItemsSchema>;
 export type Icon = z.infer<typeof iconSchema>;
@@ -53,6 +59,12 @@ export type FlowStepDirection = (typeof flowStepDirectionOptions)[number];
 export type IconStyle = (typeof iconStyleOptions)[number];
 export type ResourceKind = (typeof resourceKindOptions)[number];
 export type Environment = (typeof environmentOptions)[number];
+export type ConnectorProtocol = (typeof connectorProtocolOptions)[number];
+// Named `ConnectorCommunicationMode` (not `ConnectorMode`) to avoid
+// colliding with the unrelated `ConnectorMode` interaction mode in
+// src/types/ui.ts (the "drawing a connector" cursor mode).
+export type ConnectorCommunicationMode = (typeof connectorModeOptions)[number];
+export type ConnectorAuth = (typeof connectorAuthOptions)[number];
 
 export type ModelStore = Model & {
   actions: {

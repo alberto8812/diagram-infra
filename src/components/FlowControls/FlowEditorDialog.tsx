@@ -183,23 +183,28 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
   const missingReturnPathSteps = useMemo(() => {
     if (!selectedFlow) return [];
 
-    return getMissingReturnPathSteps(selectedFlow.steps, () => {
-      return '';
-    });
-  }, [selectedFlow]);
+    return getMissingReturnPathSteps(
+      selectedFlow.steps,
+      () => {
+        return '';
+      },
+      views
+    );
+  }, [selectedFlow, views]);
 
   const handleAddReturnPath = useCallback(() => {
     if (!selectedFlow) return;
 
     const returnSteps = getMissingReturnPathSteps(
       selectedFlow.steps,
-      generateId
+      generateId,
+      views
     );
 
     returnSteps.forEach((step) => {
       createFlowStep(selectedFlow.id, step);
     });
-  }, [selectedFlow, createFlowStep]);
+  }, [selectedFlow, createFlowStep, views]);
 
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
