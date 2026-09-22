@@ -21,8 +21,10 @@ import {
   FormControlLabel,
   Switch,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Typography
 } from '@mui/material';
+import { isEncryptedInTransit } from 'src/security/encryption';
 import { useConnector } from 'src/hooks/useConnector';
 import { ColorSelector } from 'src/components/ColorSelector/ColorSelector';
 import { useUiStateStore } from 'src/stores/uiStateStore';
@@ -52,6 +54,15 @@ const AUTH_LABELS: Record<ConnectorAuth, string> = {
   token: 'Token',
   mtls: 'mTLS',
   iam: 'IAM'
+};
+
+type EncryptedInTransitToggleValue = 'auto' | 'yes' | 'no';
+
+const encryptedInTransitToggleValue = (
+  value: boolean | undefined
+): EncryptedInTransitToggleValue => {
+  if (value === undefined) return 'auto';
+  return value ? 'yes' : 'no';
 };
 
 export const ConnectorControls = ({ id }: Props) => {
@@ -252,6 +263,48 @@ export const ConnectorControls = ({ id }: Props) => {
               );
             })}
           </Select>
+        </Stack>
+      </Section>
+      <Section title="Security">
+        <Stack spacing={2}>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Encrypted in transit
+            </Typography>
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={encryptedInTransitToggleValue(
+                connector.encryptedInTransit
+              )}
+              onChange={(e, newValue: 'auto' | 'yes' | 'no' | null) => {
+                if (newValue === null) return;
+
+                updateConnector(connector.id, {
+                  encryptedInTransit:
+                    newValue === 'auto' ? undefined : newValue === 'yes'
+                });
+              }}
+            >
+              <ToggleButton value="auto">Auto</ToggleButton>
+              <ToggleButton value="yes">Yes</ToggleButton>
+              <ToggleButton value="no">No</ToggleButton>
+            </ToggleButtonGroup>
+            {connector.encryptedInTransit === undefined && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mt: 0.5 }}
+              >
+                Derived from protocol/auth:{' '}
+                {(() => {
+                  const derived = isEncryptedInTransit(connector);
+                  if (derived === undefined) return 'Unknown';
+                  return derived ? 'Yes' : 'No';
+                })()}
+              </Typography>
+            )}
+          </Box>
         </Stack>
       </Section>
       <Section>

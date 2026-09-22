@@ -11,6 +11,8 @@ import { plaintextAcrossZonesRule } from './plaintextAcrossZones';
 import { crossVpcWithoutGatewayRule } from './crossVpcWithoutGateway';
 import { publicIngressWithoutAuthRule } from './publicIngressWithoutAuth';
 import { missingEnvironmentRule } from './missingEnvironment';
+import { sensitiveDatastoreUnencryptedRule } from './sensitiveDatastoreUnencrypted';
+import { sensitiveFlowUnencryptedRule } from './sensitiveFlowUnencrypted';
 
 export const RULES: RuleDefinition[] = [
   zonePartialOverlapRule,
@@ -20,5 +22,7 @@ export const RULES: RuleDefinition[] = [
   plaintextAcrossZonesRule,
   crossVpcWithoutGatewayRule,
   publicIngressWithoutAuthRule,
-  missingEnvironmentRule
+  missingEnvironmentRule,
+  sensitiveDatastoreUnencryptedRule,
+  sensitiveFlowUnencryptedRule
 ];

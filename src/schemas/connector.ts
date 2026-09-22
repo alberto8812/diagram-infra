@@ -32,6 +32,13 @@ export const connectorAuthOptions = [
   'iam'
 ] as const;
 
+// Infrastructure roadmap item P2: whether traffic on this connector is
+// encrypted in transit. Optional, like every field above — when unset it is
+// derived from protocol/auth by isEncryptedInTransit() (src/security/
+// encryption.ts) instead of defaulting here, so it is deliberately excluded
+// from CONNECTOR_DEFAULTS (src/config.ts), same reasoning as protocol/port/
+// mode/auth there.
+
 export const anchorSchema = z.object({
   id,
   ref: z
@@ -55,5 +62,6 @@ export const connectorSchema = z.object({
   protocol: z.enum(connectorProtocolOptions).optional(),
   port: z.number().int().min(1).max(65535).optional(),
   mode: z.enum(connectorModeOptions).optional(),
-  auth: z.enum(connectorAuthOptions).optional()
+  auth: z.enum(connectorAuthOptions).optional(),
+  encryptedInTransit: z.boolean().optional()
 });
