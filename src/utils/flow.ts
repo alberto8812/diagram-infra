@@ -105,16 +105,18 @@ export const buildReturnPathSteps = (
     });
 };
 
-// Two return-path steps are "the same" when everything but their `id`
-// matches — a fresh id is generated per build, so `id` is deliberately
-// excluded from the comparison.
-const isSameStepContent = (a: FlowStep, b: FlowStep): boolean => {
-  return (
-    a.connectorId === b.connectorId &&
-    a.direction === b.direction &&
-    a.label === b.label &&
-    a.durationMs === b.durationMs
-  );
+// Two return-path steps are "the same hop" when they cover the same
+// connector in the same direction — `connectorId` and `direction` are the
+// only structural facts a mirrored step and a user-edited one are
+// guaranteed to share. `label` and `durationMs` are deliberately excluded
+// (along with `id`, a fresh one generated per build): `buildReturnPathSteps`
+// only seeds them from the mirrored REQUEST step as a starting point, and a
+// user is expected to rewrite a response's label/duration to say something
+// different from its request (e.g. "Migration OK" instead of "run
+// migration"). Comparing them would treat that normal edit as a mismatch
+// and re-append the whole hop as a duplicate.
+const isSameReturnHop = (a: FlowStep, b: FlowStep): boolean => {
+  return a.connectorId === b.connectorId && a.direction === b.direction;
 };
 
 // Idempotent version of "add return path": `buildReturnPathSteps` always
@@ -126,6 +128,10 @@ const isSameStepContent = (a: FlowStep, b: FlowStep): boolean => {
 // already have a matching counterpart there, in order — so re-running it
 // once the return path is already fully mirrored yields an empty array, and
 // re-running it after a partial/edited mirror only fills in what's missing.
+// The match is structural (`isSameReturnHop`, connector + direction) rather
+// than content-based: a RESPONSE step's label/duration are user content that
+// is expected to diverge from the mirrored default, and comparing them
+// would make an ordinary edit look like a missing hop, duplicating it.
 export const getMissingReturnPathSteps = (
   steps: FlowStep[],
   makeId: () => string,
@@ -151,7 +157,7 @@ export const getMissingReturnPathSteps = (
   while (
     matchCount < candidates.length &&
     matchCount < existingTail.length &&
-    isSameStepContent(candidates[matchCount], existingTail[matchCount])
+    isSameReturnHop(candidates[matchCount], existingTail[matchCount])
   ) {
     matchCount += 1;
   }
