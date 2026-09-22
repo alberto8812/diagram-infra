@@ -1,8 +1,9 @@
 // Pure, React-free helpers for flows: resolving a step's connector across
-// views, labelling a connector by its endpoints for the flow editor UI, and
-// building the "add return path" convenience (RESPONSE steps mirroring the
-// existing REQUEST steps, in reverse order).
-import { Connector, FlowStep, ModelItem, View } from 'src/types';
+// views, labelling a connector by its endpoints for the flow editor UI,
+// resolving a step's successors in the flow graph, and building the "add
+// return path" convenience (RESPONSE steps mirroring the existing REQUEST
+// steps, in reverse order).
+import { Connector, Flow, FlowStep, ModelItem, View } from 'src/types';
 
 // A flow step only stores a `connectorId`; the connector itself lives in
 // whichever view still has it. Shared by src/hooks/useFlowPlayback.ts (per
@@ -68,6 +69,55 @@ export const getPacketLabel = (
   return connector.port !== undefined
     ? `${connector.protocol}:${connector.port}`
     : connector.protocol;
+};
+
+// Resolves the step(s) that run after `stepId` in the flow graph. A step
+// with a non-empty `next` names its successors explicitly, in the order
+// listed; a dangling id (no matching step in the flow) is skipped rather
+// than thrown on, and a duplicated id resolves to the same step only once.
+// A step with no `next` (or an empty one) falls back to array order: the
+// single following step, or none if it is the last one. This fallback is
+// what keeps existing linear flows working unchanged, since they declare no
+// successor data at all.
+export const resolveNextSteps = (flow: Flow, stepId: string): FlowStep[] => {
+  const index = flow.steps.findIndex((step) => {
+    return step.id === stepId;
+  });
+
+  if (index === -1) return [];
+
+  const step = flow.steps[index];
+
+  if (step.next && step.next.length > 0) {
+    const seen = new Set<string>();
+
+    return step.next.reduce<FlowStep[]>((resolved, nextId) => {
+      if (seen.has(nextId)) return resolved;
+
+      const nextStep = flow.steps.find((candidate) => {
+        return candidate.id === nextId;
+      });
+
+      if (!nextStep) return resolved;
+
+      seen.add(nextId);
+      return [...resolved, nextStep];
+    }, []);
+  }
+
+  // Fallback: no explicit `next`, so the successor is whatever comes next
+  // in the array — this is the array-order behaviour existing (pre-graph)
+  // flows rely on.
+  const nextStep = flow.steps[index + 1];
+  return nextStep ? [nextStep] : [];
+};
+
+// Entry point(s) of a flow: the first step of the array, if there is one.
+// T2 will use this to seed the initial active step set; for a flow with no
+// steps at all, there is nothing to start.
+export const getFlowStartSteps = (flow: Flow): FlowStep[] => {
+  const [firstStep] = flow.steps;
+  return firstStep ? [firstStep] : [];
 };
 
 // "Add return path": appends a RESPONSE step for every existing REQUEST step

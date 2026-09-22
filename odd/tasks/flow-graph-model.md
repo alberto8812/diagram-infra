@@ -1,0 +1,114 @@
+# Flow Graph Model (roadmap item 4, parts 1-2)
+
+Created 2026-09-22. Covers the failure-branch and parallel-step halves of roadmap
+item 4 (`odd/roadmap/infrastructure-platform.md`). GIF/video export is explicitly
+out of scope here — see "Out of scope" below for why it has to come after.
+
+## Objective
+Let a flow describe what actually happens at runtime: a step can fail and route to
+an alternative path, and several steps can run at the same time. Today a flow can
+only say "this, then this, then this".
+
+## Problem / why
+Playback is a single cursor over a flat list. `Flow.steps` is a plain array
+(`src/schemas/flow.ts:14-19`), the playback cursor is one number
+(`FlowPlayback.stepIndex`, `src/types/ui.ts:149-154`), and advancing is literally
+`stepIndex + 1` (`src/utils/flowPlayback.ts:91-103`). One step, one packet, one
+connector at a time (`Connector.tsx:190-233`).
+
+Failure branches and parallel steps look like two features but are one change:
+both need "what runs next" to stop being arithmetic over a list position and
+become a lookup over a graph. Building them separately means building the graph
+twice, then reconciling two different notions of "next".
+
+## Scope
+- Successors declared per step, so a flow is a graph instead of a list.
+- Several steps active at once when a step declares more than one successor.
+- A step can carry a failure outcome, which routes to its own successors and
+  renders differently.
+- Backward compatibility: a flow whose steps declare no successors keeps playing
+  exactly as it does today, in array order.
+
+## Out of scope
+- GIF/video export (roadmap item 4, third part). A recording needs a settled
+  timeline; branching and parallelism are what settle it, so export comes after,
+  not before. There is also no capture pipeline in the repo today — only
+  single-frame PNG via dom-to-image (`src/utils/exportOptions.ts:47-54`), no
+  MediaRecorder and no encoder — so it is a subsystem of its own.
+- Drift detection (roadmap item 6).
+
+## Constraints
+- Existing diagrams must keep loading and playing unchanged. `diagrams/infra.json`
+  has two flows with no successor data.
+- `flowPlaybackReducer` is pure and covered by 309 lines of tests
+  (`src/utils/__tests__/flowPlayback.test.ts`). Those tests are the safety net for
+  this change; they get extended, never weakened to fit.
+- The packet tween is driven by GSAP and advances on a single `onArrive` callback
+  (`ConnectorPacket.tsx:135-160`, `Connector.tsx:330-349`). Concurrency means more
+  than one tween can be in flight, so "the step finished" stops being "the step".
+- Zod strips undeclared keys, so any new field must be declared in the schema or
+  it is silently dropped on load and save (see `src/schemas/__tests__/diagrams.test.ts`).
+
+## Design decisions
+- `FlowStep.next?: string[]` — explicit successor step ids. Absent means "the next
+  step in the array", which is what keeps existing flows working. More than one
+  entry means those steps start together.
+- `FlowStep.outcome?: 'SUCCESS' | 'FAILURE'` — the semantic marker a failing step
+  needs. A failure branch is then an ordinary step marked FAILURE whose `next`
+  points at the recovery path; no separate branch type is introduced.
+- The playback cursor moves from `stepIndex: number` to a set of active step ids.
+  A flow with no successor data yields exactly one active step at a time, so the
+  existing behaviour falls out of the general case rather than being special-cased.
+- Graph traversal lives in a pure helper so it can be tested without React, GSAP
+  or the DOM, which the render layer cannot be.
+
+## TDD
+Mode: off (source: prior ODD docs in this repo). Runner: jest (`npm test`).
+
+## Checks per task
+`npm test`, `npx tsc --noEmit`, `npm run lint`.
+
+## Delivery
+Strategy: ask-on-risk. The forecast is above the ~400 authored-line budget, so the
+user chose the chain strategy on 2026-09-22: stacked-to-main. Each task ships as
+its own pull request against `main`, in order, merged before the next one starts.
+
+## Tasks
+- [x] T1 Schema and pure traversal: add `next` and `outcome` to `flowStepSchema`,
+      and a pure `resolveNextSteps(flow, stepId)` helper that falls back to array
+      order when `next` is absent. Unit tests including cycles and dangling ids.
+      No playback behaviour change yet.
+- [ ] T2 Reducer: `FlowPlayback` moves from `stepIndex` to an active step-id set,
+      advancing through the T1 helper. Extend `flowPlayback.test.ts`; every
+      existing assertion must still hold for linear flows.
+- [ ] T3 Hook and renderer: `useFlowPlayback` exposes the active steps, and
+      `Connector` renders a packet per active step on its own connector instead of
+      gating on a single current step.
+- [ ] T4 Failure rendering: a step with `outcome: 'FAILURE'` renders its packet
+      distinctly, reusing the existing palette rather than a hardcoded colour.
+- [ ] T5 Editor UI: author successors and outcome in `FlowEditorDialog`, keeping
+      the current linear add/reorder flow usable for simple cases.
+
+## Acceptance criteria
+- An existing flow with no successor data plays exactly as before, step by step.
+- A step declaring two successors starts both, and the flow continues only once
+  both have arrived.
+- A FAILURE step routes to its own successors and is visually distinguishable.
+- `diagrams/infra.json` still parses and plays; `diagrams.test.ts` stays green.
+- A flow with a dangling successor id or a cycle does not hang playback.
+
+## Progress / evidence
+- Exploration done (delegated mapper): playback is strictly index-based, one
+  packet at a time; no capture/export pipeline exists.
+- Scope chosen by the user: graph model, not a narrow failure-only cut.
+
+## Next step
+T2: move the playback cursor from `stepIndex` to an active step-id set,
+advancing through `resolveNextSteps`.
+
+## Evidence
+- T1: 490 tests / 48 suites passing (480 on main plus 10 new), `tsc --noEmit`
+  clean, and `npm run lint` reports the same 5 pre-existing problems as `main`
+  (2 `import/no-cycle` errors, 3 `no-console`/`no-alert` warnings), verified by
+  stashing the change and re-running. Route: delegated direct (writer trigger:
+  4 non-trivial files).
