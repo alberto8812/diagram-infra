@@ -114,7 +114,7 @@ describe('resolveNextSteps() works correctly', () => {
     return { id: 'flow1', name: 'Flow 1', steps };
   };
 
-  test('falls back to array order when no step declares next', () => {
+  test('a pure list flow (no step declares next) falls back to array order — backward compatibility', () => {
     const step1: FlowStep = {
       id: 's1',
       connectorId: 'conn1',
@@ -252,6 +252,69 @@ describe('resolveNextSteps() works correctly', () => {
 
     expect(resolveNextSteps(flow, 'a')).toStrictEqual([stepB]);
     expect(resolveNextSteps(flow, 'b')).toStrictEqual([stepA]);
+  });
+
+  test('a branch can end: a success leaf with no next does not fall into another branch (reproduction)', () => {
+    const req: FlowStep = {
+      id: 'req',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['ok', 'fail']
+    };
+    const ok: FlowStep = {
+      id: 'ok',
+      connectorId: 'conn2',
+      direction: 'RESPONSE'
+    };
+    const fail: FlowStep = {
+      id: 'fail',
+      connectorId: 'conn3',
+      direction: 'RESPONSE',
+      outcome: 'FAILURE'
+    };
+    const rollback: FlowStep = {
+      id: 'rollback',
+      connectorId: 'conn4',
+      direction: 'RESPONSE'
+    };
+    const flow = makeFlow([req, ok, fail, rollback]);
+
+    expect(resolveNextSteps(flow, 'ok')).toStrictEqual([]);
+  });
+
+  test('an explicit empty next in a graph flow is terminal', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: []
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['s1']
+    };
+    const flow = makeFlow([step1, step2]);
+
+    expect(resolveNextSteps(flow, 's1')).toStrictEqual([]);
+  });
+
+  test('a step with no next in a graph flow is terminal, and does not fall through to the array', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST'
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['s1']
+    };
+    const flow = makeFlow([step1, step2]);
+
+    expect(resolveNextSteps(flow, 's1')).toStrictEqual([]);
   });
 });
 

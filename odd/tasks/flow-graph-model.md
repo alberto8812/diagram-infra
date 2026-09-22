@@ -50,9 +50,15 @@ twice, then reconciling two different notions of "next".
   it is silently dropped on load and save (see `src/schemas/__tests__/diagrams.test.ts`).
 
 ## Design decisions
-- `FlowStep.next?: string[]` — explicit successor step ids. Absent means "the next
-  step in the array", which is what keeps existing flows working. More than one
-  entry means those steps start together.
+- `FlowStep.next?: string[]` — explicit successor step ids. A flow is a graph or a
+  list, never half: it is a graph as soon as any of its steps declares `next`
+  (present, even empty), and in a graph flow a step's successors are exactly its
+  resolved `next` — dangling ids skipped, repeats deduped, declared order
+  preserved — with an absent or empty `next` meaning the branch ends (`[]`).
+  Array order is never consulted in a graph flow. A flow where no step declares
+  `next` is a list flow and keeps the old array-order fallback, which is what
+  keeps every existing (pre-graph) flow working unchanged. More than one entry
+  means those steps start together.
 - `FlowStep.outcome?: 'SUCCESS' | 'FAILURE'` — the semantic marker a failing step
   needs. A failure branch is then an ordinary step marked FAILURE whose `next`
   points at the recovery path; no separate branch type is introduced.
@@ -87,7 +93,16 @@ its own pull request against `main`, in order, merged before the next one starts
 - [ ] T4 Failure rendering: a step with `outcome: 'FAILURE'` renders its packet
       distinctly, reusing the existing palette rather than a hardcoded colour.
 - [ ] T5 Editor UI: author successors and outcome in `FlowEditorDialog`, keeping
-      the current linear add/reorder flow usable for simple cases.
+      the current linear add/reorder flow usable for simple cases. Must also
+      make "add return path" (`buildReturnPathSteps` / `getMissingReturnPathSteps`
+      in `src/utils/flow.ts`) generate steps that declare their own successors:
+      today those steps have no `next`, so in a graph flow every generated step
+      would resolve as terminal and the return path would not chain.
+- [x] T1b Review follow-ups on T1, treated as in-scope T1 defects: fixed the
+      graph-vs-list asymmetry in `resolveNextSteps` (an absent or empty `next`
+      in a graph flow now ends the branch instead of falling back to array
+      order) and added a round-trip test for the `next`/`outcome` schema
+      fields.
 
 ## Acceptance criteria
 - An existing flow with no successor data plays exactly as before, step by step.
