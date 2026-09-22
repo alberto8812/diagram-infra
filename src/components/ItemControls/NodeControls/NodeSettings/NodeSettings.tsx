@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Slider,
   Box,
@@ -23,6 +23,8 @@ import { MarkdownEditor } from 'src/components/MarkdownEditor/MarkdownEditor';
 import { useModelItem } from 'src/hooks/useModelItem';
 import { useIcon } from 'src/hooks/useIcon';
 import { NODE_ICON_STYLE_DEFAULT } from 'src/config';
+import { LABEL_MAX_LENGTH } from 'src/schemas/common';
+import { parsePortInput, PORT_MIN, PORT_MAX } from 'src/utils/parsePortInput';
 import { DeleteButton } from '../../components/DeleteButton';
 import { Section } from '../../components/Section';
 
@@ -51,9 +53,6 @@ const ENVIRONMENT_LABELS: Record<Environment, string> = {
   prod: 'Prod'
 };
 
-const MIN_PORT = 1;
-const MAX_PORT = 65535;
-
 export type NodeUpdates = {
   model: Partial<ModelItem>;
   view: Partial<ViewItem>;
@@ -74,6 +73,14 @@ export const NodeSettings = ({
 }: Props) => {
   const modelItem = useModelItem(node.id);
   const { icon } = useIcon(modelItem.icon);
+  // Local buffer for the port field only: a `type="number"` input reports
+  // '' for both a genuinely empty field and invalid/partial text (e.g. "-"),
+  // so the committed model value alone can't drive the displayed text
+  // without either reverting in-progress keystrokes or clearing the stored
+  // port. See parsePortInput().
+  const [portText, setPortText] = useState(() => {
+    return modelItem.port !== undefined ? String(modelItem.port) : '';
+  });
 
   return (
     <>
@@ -178,9 +185,10 @@ export const NodeSettings = ({
           <TextField
             label="Engine"
             size="small"
+            inputProps={{ maxLength: LABEL_MAX_LENGTH }}
             value={modelItem.engine ?? ''}
             onChange={(e) => {
-              const text = e.target.value;
+              const text = e.target.value.slice(0, LABEL_MAX_LENGTH);
               if ((modelItem.engine ?? '') === text) return;
 
               onModelItemUpdated({ engine: text === '' ? undefined : text });
@@ -190,9 +198,10 @@ export const NodeSettings = ({
           <TextField
             label="Version"
             size="small"
+            inputProps={{ maxLength: LABEL_MAX_LENGTH }}
             value={modelItem.version ?? ''}
             onChange={(e) => {
-              const text = e.target.value;
+              const text = e.target.value.slice(0, LABEL_MAX_LENGTH);
               if ((modelItem.version ?? '') === text) return;
 
               onModelItemUpdated({ version: text === '' ? undefined : text });
@@ -203,36 +212,34 @@ export const NodeSettings = ({
             label="Port"
             size="small"
             type="number"
-            inputProps={{ min: MIN_PORT, max: MAX_PORT }}
-            value={modelItem.port ?? ''}
+            inputProps={{ min: PORT_MIN, max: PORT_MAX }}
+            value={portText}
             onChange={(e) => {
               const text = e.target.value;
+              setPortText(text);
 
-              if (text === '') {
+              const result = parsePortInput(text, e.target.validity.badInput);
+
+              if (result.action === 'ignore') return;
+
+              if (result.action === 'clear') {
                 if (modelItem.port !== undefined)
                   onModelItemUpdated({ port: undefined });
                 return;
               }
 
-              const parsed = Number(text);
-              if (
-                !Number.isInteger(parsed) ||
-                parsed < MIN_PORT ||
-                parsed > MAX_PORT
-              )
-                return;
-
-              if (modelItem.port !== parsed)
-                onModelItemUpdated({ port: parsed });
+              if (modelItem.port !== result.value)
+                onModelItemUpdated({ port: result.value });
             }}
           />
 
           <TextField
             label="Region"
             size="small"
+            inputProps={{ maxLength: LABEL_MAX_LENGTH }}
             value={modelItem.region ?? ''}
             onChange={(e) => {
-              const text = e.target.value;
+              const text = e.target.value.slice(0, LABEL_MAX_LENGTH);
               if ((modelItem.region ?? '') === text) return;
 
               onModelItemUpdated({ region: text === '' ? undefined : text });
@@ -242,9 +249,10 @@ export const NodeSettings = ({
           <TextField
             label="Owner"
             size="small"
+            inputProps={{ maxLength: LABEL_MAX_LENGTH }}
             value={modelItem.owner ?? ''}
             onChange={(e) => {
-              const text = e.target.value;
+              const text = e.target.value.slice(0, LABEL_MAX_LENGTH);
               if ((modelItem.owner ?? '') === text) return;
 
               onModelItemUpdated({ owner: text === '' ? undefined : text });

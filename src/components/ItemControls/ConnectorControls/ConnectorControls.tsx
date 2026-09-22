@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Connector,
   connectorStyleOptions,
@@ -10,6 +10,7 @@ import {
   connectorAuthOptions,
   ConnectorAuth
 } from 'src/types';
+import { parsePortInput, PORT_MIN, PORT_MAX } from 'src/utils/parsePortInput';
 import {
   Box,
   Stack,
@@ -53,15 +54,18 @@ const AUTH_LABELS: Record<ConnectorAuth, string> = {
   iam: 'IAM'
 };
 
-const MIN_PORT = 1;
-const MAX_PORT = 65535;
-
 export const ConnectorControls = ({ id }: Props) => {
   const uiStateActions = useUiStateStore((state) => {
     return state.actions;
   });
   const connector = useConnector(id);
   const { updateConnector, deleteConnector } = useScene();
+  // Local buffer for the port field only: see the comment on the equivalent
+  // field in NodeSettings.tsx / parsePortInput() for why the committed
+  // value alone can't drive a `type="number"` input's displayed text.
+  const [portText, setPortText] = useState(() => {
+    return connector.port !== undefined ? String(connector.port) : '';
+  });
 
   return (
     <ControlsContainer>
@@ -171,27 +175,24 @@ export const ConnectorControls = ({ id }: Props) => {
             label="Port"
             size="small"
             type="number"
-            inputProps={{ min: MIN_PORT, max: MAX_PORT }}
-            value={connector.port ?? ''}
+            inputProps={{ min: PORT_MIN, max: PORT_MAX }}
+            value={portText}
             onChange={(e) => {
               const text = e.target.value;
+              setPortText(text);
 
-              if (text === '') {
+              const result = parsePortInput(text, e.target.validity.badInput);
+
+              if (result.action === 'ignore') return;
+
+              if (result.action === 'clear') {
                 if (connector.port !== undefined)
                   updateConnector(connector.id, { port: undefined });
                 return;
               }
 
-              const parsed = Number(text);
-              if (
-                !Number.isInteger(parsed) ||
-                parsed < MIN_PORT ||
-                parsed > MAX_PORT
-              )
-                return;
-
-              if (connector.port !== parsed)
-                updateConnector(connector.id, { port: parsed });
+              if (connector.port !== result.value)
+                updateConnector(connector.id, { port: result.value });
             }}
           />
 
