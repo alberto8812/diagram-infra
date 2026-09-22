@@ -6,7 +6,8 @@ import {
   Typography,
   Stack,
   Divider,
-  Button
+  Button,
+  Tooltip
 } from '@mui/material';
 import {
   PlayArrow as PlayIcon,
@@ -28,7 +29,8 @@ import { FLOW_PLAYBACK_SPEED_OPTIONS } from 'src/config';
 
 // Playback controls for the currently selected flow: flow picker, transport
 // (play/pause, stop, prev/next step), speed, and a "step n / total — label"
-// indicator. Shown in the UiOverlay for both EDITABLE and
+// indicator. Docked at the bottom center of the UiOverlay (the label
+// truncates with a tooltip on narrow viewports). Shown for both EDITABLE and
 // EXPLORABLE_READONLY editor modes (see UiOverlay.tsx); the "Edit flows"
 // entry point and the "create the first flow" prompt only render in
 // EDITABLE mode.
@@ -96,8 +98,13 @@ export const FlowPlaybackBar = () => {
   }
 
   return (
-    <UiElement>
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1 }}>
+    <UiElement sx={{ maxWidth: '100%' }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={1}
+        sx={{ px: 1, minWidth: 0 }}
+      >
         <Select
           size="small"
           variant="standard"
@@ -107,7 +114,7 @@ export const FlowPlaybackBar = () => {
           onChange={(e) => {
             selectFlow((e.target.value as string) || null);
           }}
-          sx={{ minWidth: 140 }}
+          sx={{ minWidth: 110, maxWidth: 180, flexShrink: 0, fontSize: 14 }}
         >
           <MenuItem value="">
             <em>Select a flow</em>
@@ -166,7 +173,7 @@ export const FlowPlaybackBar = () => {
           onChange={(e) => {
             setSpeed(Number(e.target.value));
           }}
-          sx={{ minWidth: 56 }}
+          sx={{ minWidth: 48, flexShrink: 0, fontSize: 14 }}
         >
           {FLOW_PLAYBACK_SPEED_OPTIONS.map((speed) => {
             return (
@@ -179,13 +186,16 @@ export const FlowPlaybackBar = () => {
 
         <Divider orientation="vertical" flexItem />
 
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ minWidth: 140 }}
-        >
-          {stepLabel}
-        </Typography>
+        <Tooltip title={stepLabel} placement="top" enterDelay={500}>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            noWrap
+            sx={{ flex: '1 1 auto', minWidth: 60, maxWidth: 260 }}
+          >
+            {stepLabel}
+          </Typography>
+        </Tooltip>
 
         {isEditable && (
           <>

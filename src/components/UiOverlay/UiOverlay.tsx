@@ -97,6 +97,18 @@ export const UiOverlay = () => {
     return state.title;
   });
   const { size: rendererSize } = useResizeObserver(rendererEl);
+  const { height: controlHeight } = theme.customVars.toolMenu;
+
+  // Enterprise layout: a compact header row (menu + breadcrumb on the left,
+  // editing tools on the right) and a status row at the bottom (zoom on the
+  // left, flow playback centered). Bottom-anchored elements use
+  // translateY(-100%) so they stay aligned regardless of their own height.
+  const headerTop = appPadding.y;
+  const panelTop = headerTop + controlHeight + spacing(1);
+  const bottomEdge = rendererSize.height - appPadding.y;
+  // Horizontal room reserved at each bottom corner (zoom controls on the
+  // left, host widgets such as the examples switcher on the right).
+  const bottomCornerReserve = 220;
 
   return (
     <>
@@ -121,8 +133,8 @@ export const UiOverlay = () => {
             }}
             style={{
               left: appPadding.x,
-              top: appPadding.y * 2 + spacing(2),
-              maxHeight: rendererSize.height - appPadding.y * 6
+              top: panelTop,
+              maxHeight: bottomEdge - controlHeight - spacing(1) - panelTop
             }}
           >
             <ItemControlsManager />
@@ -137,21 +149,76 @@ export const UiOverlay = () => {
             }}
             style={{
               left: rendererSize.width - appPadding.x,
-              top: appPadding.y
+              top: headerTop
             }}
           >
             <ToolMenu />
           </Box>
         )}
 
+        {(availableTools.includes('MAIN_MENU') ||
+          availableTools.includes('VIEW_TITLE')) && (
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{ position: 'absolute' }}
+            style={{
+              top: headerTop,
+              left: appPadding.x,
+              maxWidth: Math.max(rendererSize.width * 0.45, 240)
+            }}
+          >
+            {availableTools.includes('MAIN_MENU') && <MainMenu />}
+
+            {availableTools.includes('VIEW_TITLE') && (
+              <UiElement
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  minWidth: 0,
+                  px: 1.5,
+                  height: controlHeight,
+                  pointerEvents: 'none'
+                }}
+              >
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={0.5}
+                  sx={{ minWidth: 0 }}
+                >
+                  <Typography
+                    variant="body2"
+                    fontWeight={600}
+                    color="text.secondary"
+                    noWrap
+                  >
+                    {title}
+                  </Typography>
+                  <ChevronRight />
+                  <Typography
+                    variant="body2"
+                    fontWeight={600}
+                    color="text.primary"
+                    noWrap
+                  >
+                    {currentView.name}
+                  </Typography>
+                </Stack>
+              </UiElement>
+            )}
+          </Stack>
+        )}
+
         {availableTools.includes('ZOOM_CONTROLS') && (
           <Box
             sx={{
               position: 'absolute',
-              transformOrigin: 'bottom left'
+              transform: 'translateY(-100%)'
             }}
             style={{
-              top: rendererSize.height - appPadding.y * 2,
+              top: bottomEdge,
               left: appPadding.x
             }}
           >
@@ -159,66 +226,19 @@ export const UiOverlay = () => {
           </Box>
         )}
 
-        {availableTools.includes('MAIN_MENU') && (
-          <Box
-            sx={{
-              position: 'absolute'
-            }}
-            style={{
-              top: appPadding.y,
-              left: appPadding.x
-            }}
-          >
-            <MainMenu />
-          </Box>
-        )}
-
-        {availableTools.includes('VIEW_TITLE') && (
-          <Box
-            sx={{
-              position: 'absolute',
-              display: 'flex',
-              justifyContent: 'center',
-              transform: 'translateX(-50%)',
-              pointerEvents: 'none'
-            }}
-            style={{
-              left: rendererSize.width / 2,
-              top: rendererSize.height - appPadding.y * 2,
-              width: rendererSize.width - 500,
-              height: appPadding.y
-            }}
-          >
-            <UiElement
-              sx={{
-                display: 'inline-flex',
-                px: 2,
-                alignItems: 'center',
-                height: '100%'
-              }}
-            >
-              <Stack direction="row" alignItems="center">
-                <Typography fontWeight={600} color="text.secondary">
-                  {title}
-                </Typography>
-                <ChevronRight />
-                <Typography fontWeight={600} color="text.secondary">
-                  {currentView.name}
-                </Typography>
-              </Stack>
-            </UiElement>
-          </Box>
-        )}
-
         {availableTools.includes('FLOW_CONTROLS') && (
           <Box
             sx={{
               position: 'absolute',
-              transform: 'translateX(-50%)'
+              transform: 'translate(-50%, -100%)'
             }}
             style={{
               left: rendererSize.width / 2,
-              top: appPadding.y
+              top: bottomEdge,
+              maxWidth: Math.max(
+                rendererSize.width - bottomCornerReserve * 2,
+                320
+              )
             }}
           >
             <FlowPlaybackBar />
@@ -233,9 +253,9 @@ export const UiOverlay = () => {
               transform: 'translateY(-100%)'
             }}
             style={{
-              maxWidth: `calc(${rendererSize.width} - ${appPadding.x * 2}px)`,
+              maxWidth: rendererSize.width - appPadding.x * 2,
               left: appPadding.x,
-              top: rendererSize.height - appPadding.y * 2 - spacing(1)
+              top: bottomEdge - controlHeight - spacing(1)
             }}
           >
             <DebugUtils />

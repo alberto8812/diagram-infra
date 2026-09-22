@@ -22,7 +22,10 @@ export const Examples = () => {
     <Box sx={{ width: '100vw', height: '100vh' }}>
       <Box sx={{ width: '100%', height: '100%' }}>{Example && <Example />}</Box>
       <Select
+        size="small"
         sx={{
+          height: theme.customVars.toolMenu.height,
+          fontSize: 14,
           position: 'absolute',
           bottom: theme.customVars.appPadding.y,
           right: theme.customVars.appPadding.x,
