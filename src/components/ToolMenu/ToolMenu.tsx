@@ -1,17 +1,19 @@
 import React, { useCallback } from 'react';
-import { Stack } from '@mui/material';
+import { Badge, Stack } from '@mui/material';
 import {
   PanToolOutlined as PanToolIcon,
   NearMeOutlined as NearMeIcon,
   AddOutlined as AddIcon,
   EastOutlined as ConnectorIcon,
   CropSquareOutlined as CropSquareIcon,
-  Title as TitleIcon
+  Title as TitleIcon,
+  WarningAmberOutlined as IssuesIcon
 } from '@mui/icons-material';
 import { useUiStateStore } from 'src/stores/uiStateStore';
 import { IconButton } from 'src/components/IconButton/IconButton';
 import { UiElement } from 'src/components/UiElement/UiElement';
 import { useScene } from 'src/hooks/useScene';
+import { useIssues } from 'src/hooks/useIssues';
 import { TEXTBOX_DEFAULTS } from 'src/config';
 import { generateId } from 'src/utils';
 
@@ -20,12 +22,16 @@ export const ToolMenu = () => {
   const mode = useUiStateStore((state) => {
     return state.mode;
   });
+  const dialog = useUiStateStore((state) => {
+    return state.dialog;
+  });
   const uiStateStoreActions = useUiStateStore((state) => {
     return state.actions;
   });
   const mousePosition = useUiStateStore((state) => {
     return state.mouse.position.tile;
   });
+  const issues = useIssues();
 
   const createTextBoxProxy = useCallback(() => {
     const textBoxId = generateId();
@@ -115,6 +121,25 @@ export const ToolMenu = () => {
           Icon={<TitleIcon />}
           onClick={createTextBoxProxy}
           isActive={mode.type === 'TEXTBOX'}
+        />
+        <IconButton
+          name="Issues"
+          Icon={
+            <Badge
+              badgeContent={issues.length}
+              color="error"
+              max={99}
+              invisible={issues.length === 0}
+            >
+              <IssuesIcon />
+            </Badge>
+          }
+          onClick={() => {
+            uiStateStoreActions.setDialog(
+              dialog === 'ISSUES' ? null : 'ISSUES'
+            );
+          }}
+          isActive={dialog === 'ISSUES'}
         />
       </Stack>
     </UiElement>

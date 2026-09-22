@@ -115,7 +115,8 @@ export type IconCollectionStateWithIcons = IconCollectionState & {
 
 export const DialogTypeEnum = {
   EXPORT_IMAGE: 'EXPORT_IMAGE',
-  FLOW_EDITOR: 'FLOW_EDITOR'
+  FLOW_EDITOR: 'FLOW_EDITOR',
+  ISSUES: 'ISSUES'
 } as const;
 
 export interface ContextMenu {
