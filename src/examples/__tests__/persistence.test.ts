@@ -1,3 +1,4 @@
+import { Model } from 'src/Isoflow';
 import {
   isValidDiagramName,
   diagramStorageKey,
@@ -296,6 +297,45 @@ describe('fetch wrappers', () => {
     await expect(createDiagram('infra')).rejects.toBeInstanceOf(
       DiagramApiError
     );
+  });
+
+  test('createDiagram() sends the model in the same request when provided, atomically', async () => {
+    let capturedBody: unknown;
+
+    mockFetch((_input: unknown, init: unknown) => {
+      capturedBody = JSON.parse((init as { body: string }).body);
+      return jsonResponse({ ok: true });
+    });
+
+    const model = {
+      title: 'imported',
+      items: [],
+      views: [],
+      colors: [],
+      icons: [{ id: 'icon-1' }]
+    } as unknown as Model;
+
+    await createDiagram('imported', model);
+
+    // Icons are stripped, same as saveDiagram() — the point is one request
+    // carries both the name and the content, not the icon-stripping detail.
+    expect(capturedBody).toStrictEqual({
+      name: 'imported',
+      model: { title: 'imported', items: [], views: [], colors: [], icons: [] }
+    });
+  });
+
+  test('createDiagram() sends only the name when no model is given', async () => {
+    let capturedBody: unknown;
+
+    mockFetch((_input: unknown, init: unknown) => {
+      capturedBody = JSON.parse((init as { body: string }).body);
+      return jsonResponse({ ok: true });
+    });
+
+    await createDiagram('empty');
+
+    expect(capturedBody).toStrictEqual({ name: 'empty' });
   });
 
   test('duplicateDiagram() throws a DiagramApiError on failure', async () => {
