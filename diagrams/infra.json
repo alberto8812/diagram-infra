@@ -327,7 +327,7 @@
       ],
       "connectors": [
         {
-          "id": "c9a59d19-bf5a-44f8-b93e-8e83db365536",
+          "id": "conn-wf-runner",
           "color": "color1",
           "anchors": [
             {
@@ -348,7 +348,8 @@
           "description": "send-call-to-runner",
           "protocol": "HTTPS",
           "mode": "async",
-          "auth": "token"
+          "auth": "token",
+          "direction": "FORWARD"
         },
         {
           "id": "abc7bcca-a83c-4087-ae11-7cd7180e7ea6",
@@ -1201,7 +1202,7 @@
         },
         {
           "id": "018ebd53-be9d-44bd-926b-dd29cb5b0db1",
-          "connectorId": "c9a59d19-bf5a-44f8-b93e-8e83db365536",
+          "connectorId": "conn-wf-runner",
           "direction": "REQUEST",
           "label": "accionar runner",
           "durationMs": 1600
@@ -1270,6 +1271,12 @@
           "connectorId": "1cc01db6-ddfe-4c40-9116-be67b216a3ea",
           "direction": "RESPONSE",
           "label": "Estado"
+        },
+        {
+          "id": "step-22",
+          "connectorId": "conn-wf-runner",
+          "direction": "RESPONSE",
+          "label": "Estado del runner"
         },
         {
           "id": "step-23",
