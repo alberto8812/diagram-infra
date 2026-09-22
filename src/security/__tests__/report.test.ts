@@ -3,7 +3,8 @@ import { ControlMapping } from 'src/compliance/controls';
 import { Threat } from '../threats';
 import {
   buildSecurityReportJson,
-  buildSecurityReportMarkdown
+  buildSecurityReportMarkdown,
+  groupThreatsByElement
 } from '../report';
 
 const issue: Issue = {
@@ -67,6 +68,68 @@ const controlMappings: ControlMapping[] = [
     findings: []
   }
 ];
+
+describe('groupThreatsByElement()', () => {
+  const resolveLabel = (targetType: string, targetId: string) => {
+    return `${targetType}:${targetId}`;
+  };
+
+  test('groups threats sharing the same viewId, targetType and targetId', () => {
+    const groups = groupThreatsByElement(
+      [openThreat, mitigatedThreat],
+      resolveLabel
+    );
+
+    expect(groups).toHaveLength(2);
+    const dbGroup = groups.find((g) => {
+      return g.targetId === 'db1';
+    });
+    expect(dbGroup?.threats).toHaveLength(1);
+  });
+
+  test('keeps two items with the same name/label in separate groups', () => {
+    // Same targetType/label but different targetId and viewId — must not
+    // collapse into one group (this is exactly what a naive label-based key
+    // would get wrong, and is why grouping is keyed by
+    // viewId+targetType+targetId, not by label).
+    const threatA: Threat = {
+      ...openThreat,
+      id: 'v1:ITEM:db1:I',
+      viewId: 'v1',
+      targetId: 'db1'
+    };
+    const threatB: Threat = {
+      ...openThreat,
+      id: 'v2:ITEM:db2:I',
+      viewId: 'v2',
+      targetId: 'db2'
+    };
+
+    const sameLabel = () => {
+      return 'db';
+    };
+
+    const groups = groupThreatsByElement([threatA, threatB], sameLabel);
+
+    expect(groups).toHaveLength(2);
+  });
+
+  test('keeps the same element appearing in two different views as separate groups', () => {
+    const inViewOne: Threat = { ...openThreat, viewId: 'v1' };
+    const inViewTwo: Threat = { ...openThreat, viewId: 'v2' };
+
+    const groups = groupThreatsByElement([inViewOne, inViewTwo], resolveLabel);
+
+    expect(groups).toHaveLength(2);
+    expect(
+      groups
+        .map((g) => {
+          return g.viewId;
+        })
+        .sort()
+    ).toStrictEqual(['v1', 'v2']);
+  });
+});
 
 describe('buildSecurityReportMarkdown()', () => {
   test('includes the diagram title, generated date and summary counts', () => {

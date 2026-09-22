@@ -35,7 +35,7 @@ const SEVERITIES: RuleSeverity[] = ['error', 'warning', 'info'];
 const STATUSES: ThreatStatus[] = ['open', 'mitigated', 'unknown'];
 const CATEGORIES: ThreatCategory[] = ['S', 'T', 'R', 'I', 'D', 'E'];
 
-interface ElementGroup {
+export interface ElementGroup {
   targetType: ThreatTargetType;
   targetId: string;
   viewId: string;
@@ -43,7 +43,13 @@ interface ElementGroup {
   threats: Threat[];
 }
 
-const groupThreatsByElement = (
+// Groups threats by (viewId, targetType, targetId) — the same element can
+// appear in more than one view, and two different elements can share a
+// display label, so grouping (and any React key derived from a group) must
+// use this triple, never the label alone. Exported so SecurityReportDialog
+// reuses this exact grouping instead of re-implementing it (P2b review
+// follow-up).
+export const groupThreatsByElement = (
   threats: Threat[],
   resolveElementLabel: NonNullable<SecurityReportInput['resolveElementLabel']>
 ): ElementGroup[] => {

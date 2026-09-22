@@ -56,6 +56,27 @@ describe('mapFindingsToControls()', () => {
     });
   });
 
+  test('preserves a RECTANGLE target type instead of relabeling it as ITEM', () => {
+    const mappings = mapFindingsToControls(
+      [
+        issue({
+          ruleId: 'datastore-in-public-zone',
+          targets: [{ type: 'RECTANGLE', id: 'subnet1' }]
+        })
+      ],
+      []
+    );
+
+    const cc61 = mappings.find((m) => {
+      return m.control.framework === 'SOC2' && m.control.controlId === 'CC6.1';
+    });
+
+    expect(cc61?.findings[0]).toMatchObject({
+      targetType: 'RECTANGLE',
+      targetId: 'subnet1'
+    });
+  });
+
   test('an unknown rule id contributes no findings', () => {
     const mappings = mapFindingsToControls(
       [issue({ ruleId: 'not-a-real-rule' })],

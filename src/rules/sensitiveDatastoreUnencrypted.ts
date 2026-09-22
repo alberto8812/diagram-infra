@@ -1,19 +1,10 @@
-import { DataClassification, ResourceKind } from 'src/types';
+import {
+  isDataStoreKind,
+  isSensitiveClassification
+} from 'src/security/classification';
 import { Issue, RuleDefinition } from './types';
 
 export const RULE_ID = 'sensitive-datastore-unencrypted';
-
-const DATASTORE_KINDS: ReadonlySet<ResourceKind> = new Set([
-  'database',
-  'cache',
-  'storage',
-  'queue'
-]);
-
-const SENSITIVE_CLASSIFICATIONS: ReadonlySet<DataClassification> = new Set([
-  'confidential',
-  'restricted'
-]);
 
 export const sensitiveDatastoreUnencryptedRule: RuleDefinition = {
   id: RULE_ID,
@@ -31,12 +22,9 @@ export const sensitiveDatastoreUnencryptedRule: RuleDefinition = {
 
     ctx.view.items.forEach((viewItem) => {
       const item = ctx.itemsById.get(viewItem.id);
-      if (!item || !item.kind || !DATASTORE_KINDS.has(item.kind)) return;
+      if (!item || !isDataStoreKind(item.kind)) return;
 
-      if (
-        !item.dataClassification ||
-        !SENSITIVE_CLASSIFICATIONS.has(item.dataClassification)
-      ) {
+      if (!isSensitiveClassification(item.dataClassification)) {
         return;
       }
 

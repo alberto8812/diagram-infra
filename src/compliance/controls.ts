@@ -10,8 +10,18 @@
 // CIS AWS Foundations Benchmark is deliberately omitted: its control
 // numbering differs across published versions (v1.2/v1.4/v1.5/v2.0/v3.0)
 // and this module can't name specific control ids for it with confidence.
-import { Issue, RuleSeverity } from 'src/rules/types';
-import { Threat, ThreatCategory, ThreatTargetType } from 'src/security/threats';
+import { Issue, IssueTargetType, RuleSeverity } from 'src/rules/types';
+import { RULE_ID as ZONE_PARTIAL_OVERLAP_RULE_ID } from 'src/rules/zonePartialOverlap';
+import { RULE_ID as DATASTORE_IN_PUBLIC_ZONE_RULE_ID } from 'src/rules/datastoreInPublicZone';
+import { RULE_ID as PROD_WITHOUT_OWNER_RULE_ID } from 'src/rules/prodWithoutOwner';
+import { RULE_ID as PROD_DATABASE_SINGLE_AZ_RULE_ID } from 'src/rules/prodDatabaseSingleAz';
+import { RULE_ID as PLAINTEXT_ACROSS_ZONES_RULE_ID } from 'src/rules/plaintextAcrossZones';
+import { RULE_ID as CROSS_VPC_WITHOUT_GATEWAY_RULE_ID } from 'src/rules/crossVpcWithoutGateway';
+import { RULE_ID as PUBLIC_INGRESS_WITHOUT_AUTH_RULE_ID } from 'src/rules/publicIngressWithoutAuth';
+import { RULE_ID as MISSING_ENVIRONMENT_RULE_ID } from 'src/rules/missingEnvironment';
+import { RULE_ID as SENSITIVE_DATASTORE_UNENCRYPTED_RULE_ID } from 'src/rules/sensitiveDatastoreUnencrypted';
+import { RULE_ID as SENSITIVE_FLOW_UNENCRYPTED_RULE_ID } from 'src/rules/sensitiveFlowUnencrypted';
+import { Threat, ThreatCategory } from 'src/security/threats';
 
 export type ComplianceFramework = 'SOC2' | 'ISO27001' | 'PCI_DSS';
 
@@ -31,7 +41,11 @@ export interface ComplianceFinding {
   severity?: RuleSeverity;
   message: string;
   viewId: string;
-  targetType: ThreatTargetType;
+  // Widened to IssueTargetType (adds 'RECTANGLE') rather than the narrower
+  // ThreatTargetType: a rule finding's target can be a zone rectangle, and
+  // that real target type must survive into the finding so consumers can
+  // resolve the id against the right collection (items vs. rectangles).
+  targetType: IssueTargetType;
   targetId: string;
 }
 
@@ -167,45 +181,47 @@ const controlKey = (framework: ComplianceFramework, controlId: string) => {
 };
 
 // Which controls a lint rule (src/rules/catalog.ts) speaks to. A rule id
-// missing from this table maps to no control.
+// missing from this table maps to no control. Keys are the rules' own
+// exported RULE_ID constants (not hard-coded strings) so renaming a rule id
+// breaks the build here instead of silently dropping the mapping.
 const RULE_ID_TO_CONTROLS: Record<string, [ComplianceFramework, string][]> = {
-  'zone-partial-overlap': [['ISO27001', '8.22']],
-  'datastore-in-public-zone': [
+  [ZONE_PARTIAL_OVERLAP_RULE_ID]: [['ISO27001', '8.22']],
+  [DATASTORE_IN_PUBLIC_ZONE_RULE_ID]: [
     ['SOC2', 'CC6.1'],
     ['SOC2', 'CC6.6'],
     ['ISO27001', '8.20'],
     ['ISO27001', '8.22'],
     ['PCI_DSS', '1.3']
   ],
-  'prod-without-owner': [['ISO27001', '5.9']],
-  'prod-database-single-az': [
+  [PROD_WITHOUT_OWNER_RULE_ID]: [['ISO27001', '5.9']],
+  [PROD_DATABASE_SINGLE_AZ_RULE_ID]: [
     ['SOC2', 'A1.2'],
     ['ISO27001', '8.14']
   ],
-  'plaintext-across-zones': [
+  [PLAINTEXT_ACROSS_ZONES_RULE_ID]: [
     ['SOC2', 'CC6.7'],
     ['ISO27001', '8.24'],
     ['PCI_DSS', '4.2']
   ],
-  'cross-vpc-without-gateway': [
+  [CROSS_VPC_WITHOUT_GATEWAY_RULE_ID]: [
     ['SOC2', 'CC6.6'],
     ['ISO27001', '8.20'],
     ['ISO27001', '8.22'],
     ['PCI_DSS', '1.3'],
     ['PCI_DSS', '1.4']
   ],
-  'public-ingress-without-auth': [
+  [PUBLIC_INGRESS_WITHOUT_AUTH_RULE_ID]: [
     ['SOC2', 'CC6.1'],
     ['PCI_DSS', '8.3']
   ],
-  'missing-environment': [['ISO27001', '5.9']],
-  'sensitive-datastore-unencrypted': [
+  [MISSING_ENVIRONMENT_RULE_ID]: [['ISO27001', '5.9']],
+  [SENSITIVE_DATASTORE_UNENCRYPTED_RULE_ID]: [
     ['SOC2', 'CC6.1'],
     ['ISO27001', '5.12'],
     ['ISO27001', '8.24'],
     ['PCI_DSS', '3.5']
   ],
-  'sensitive-flow-unencrypted': [
+  [SENSITIVE_FLOW_UNENCRYPTED_RULE_ID]: [
     ['SOC2', 'CC6.7'],
     ['ISO27001', '8.24'],
     ['PCI_DSS', '4.2']
@@ -278,10 +294,7 @@ export const mapFindingsToControls = (
         severity: issue.severity,
         message: issue.message,
         viewId: issue.viewId,
-        targetType:
-          primaryTarget?.type === 'RECTANGLE'
-            ? 'ITEM'
-            : (primaryTarget?.type ?? 'ITEM'),
+        targetType: primaryTarget?.type ?? 'ITEM',
         targetId: primaryTarget?.id ?? ''
       });
     });

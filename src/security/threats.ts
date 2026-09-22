@@ -13,15 +13,10 @@
 // Elements without a `kind` are skipped entirely (nothing to classify them
 // by) — connectors are the one exception, since they never carry a `kind`
 // but are always meaningful as STRIDE data flows.
-import {
-  Connector,
-  DataClassification,
-  ModelItem,
-  ResourceKind,
-  View
-} from 'src/types';
+import { Connector, ModelItem, ResourceKind, View } from 'src/types';
 import { buildRuleContext } from 'src/rules/engine';
 import { LintableModel } from 'src/rules/types';
+import { DATA_STORE_KINDS, isSensitiveClassification } from './classification';
 import { isEncryptedInTransit } from './encryption';
 import { getTrustBoundariesCrossed } from './trustBoundaries';
 
@@ -55,18 +50,6 @@ type ElementClass = 'externalEntity' | 'process' | 'dataStore';
 const EXTERNAL_ENTITY_KINDS: ReadonlySet<ResourceKind> = new Set([
   'user',
   'external'
-]);
-
-const DATA_STORE_KINDS: ReadonlySet<ResourceKind> = new Set([
-  'database',
-  'cache',
-  'storage',
-  'queue'
-]);
-
-const SENSITIVE_CLASSIFICATIONS: ReadonlySet<DataClassification> = new Set([
-  'confidential',
-  'restricted'
 ]);
 
 // STRIDE-per-element: which categories are even meaningful for each
@@ -132,9 +115,7 @@ const dataStoreIDescription = (
 };
 
 const dataStoreFindings = (item: ModelItem): CategoryFinding[] => {
-  const isSensitive =
-    item.dataClassification !== undefined &&
-    SENSITIVE_CLASSIFICATIONS.has(item.dataClassification);
+  const isSensitive = isSensitiveClassification(item.dataClassification);
   const encrypted = item.encryptedAtRest === true;
 
   const iStatus = dataStoreIStatus(isSensitive, encrypted);

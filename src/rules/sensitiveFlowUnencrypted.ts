@@ -1,13 +1,8 @@
-import { DataClassification } from 'src/types';
 import { isEncryptedInTransit } from 'src/security/encryption';
+import { isSensitiveClassification } from 'src/security/classification';
 import { Issue, RuleDefinition } from './types';
 
 export const RULE_ID = 'sensitive-flow-unencrypted';
-
-const SENSITIVE_CLASSIFICATIONS: ReadonlySet<DataClassification> = new Set([
-  'confidential',
-  'restricted'
-]);
 
 export const sensitiveFlowUnencryptedRule: RuleDefinition = {
   id: RULE_ID,
@@ -28,10 +23,7 @@ export const sensitiveFlowUnencryptedRule: RuleDefinition = {
 
       const { from, to } = ctx.connectorEndpoints(connector);
       const touchesSensitiveData = [from, to].some((endpoint) => {
-        return (
-          endpoint?.dataClassification !== undefined &&
-          SENSITIVE_CLASSIFICATIONS.has(endpoint.dataClassification)
-        );
+        return isSensitiveClassification(endpoint?.dataClassification);
       });
 
       if (!touchesSensitiveData) return;

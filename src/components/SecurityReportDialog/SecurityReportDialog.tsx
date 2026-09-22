@@ -22,7 +22,8 @@ import { generateThreats, Threat, ThreatStatus } from 'src/security/threats';
 import { mapFindingsToControls } from 'src/compliance/controls';
 import {
   buildSecurityReportJson,
-  buildSecurityReportMarkdown
+  buildSecurityReportMarkdown,
+  groupThreatsByElement
 } from 'src/security/report';
 import { downloadFile } from 'src/utils';
 
@@ -36,8 +37,17 @@ const STATUS_COLORS: Record<ThreatStatus, 'error' | 'success' | 'default'> = {
   unknown: 'default'
 };
 
+// Compact, filesystem-safe timestamp (colons in the raw ISO string are
+// invalid in Windows filenames): 20260922T153045.
+const compactTimestamp = (date: Date): string => {
+  return date
+    .toISOString()
+    .replace(/[:-]/g, '')
+    .replace(/\.\d+Z$/, '');
+};
+
 const filenameFor = (extension: string) => {
-  return `isoflow-security-report-${new Date().toISOString()}.${extension}`;
+  return `isoflow-security-report-${compactTimestamp(new Date())}.${extension}`;
 };
 
 export const SecurityReportDialog = ({ onClose }: Props) => {
@@ -80,29 +90,10 @@ export const SecurityReportDialog = ({ onClose }: Props) => {
     [itemsById]
   );
 
+  // Reuses the same grouping the Markdown/JSON reports use (src/security/
+  // report.ts) instead of re-implementing it here (P2b review follow-up).
   const threatsByElement = useMemo(() => {
-    const groups = new Map<
-      string,
-      { label: string; targetType: Threat['targetType']; threats: Threat[] }
-    >();
-
-    threats.forEach((threat) => {
-      const key = `${threat.viewId}:${threat.targetType}:${threat.targetId}`;
-      const existing = groups.get(key);
-
-      if (existing) {
-        existing.threats.push(threat);
-        return;
-      }
-
-      groups.set(key, {
-        label: resolveElementLabel(threat.targetType, threat.targetId),
-        targetType: threat.targetType,
-        threats: [threat]
-      });
-    });
-
-    return [...groups.values()];
+    return groupThreatsByElement(threats, resolveElementLabel);
   }, [threats, resolveElementLabel]);
 
   const reportInput = useCallback(() => {
@@ -176,7 +167,9 @@ export const SecurityReportDialog = ({ onClose }: Props) => {
             <Stack spacing={2}>
               {threatsByElement.map((group) => {
                 return (
-                  <Box key={`${group.targetType}-${group.label}`}>
+                  <Box
+                    key={`${group.viewId}-${group.targetType}-${group.targetId}`}
+                  >
                     <Typography variant="body2" fontWeight={600}>
                       {group.label}
                     </Typography>
