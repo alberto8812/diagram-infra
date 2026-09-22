@@ -7,17 +7,21 @@ import { Environment } from 'src/types';
 
 export type TerraformValues = Record<string, unknown>;
 
-const ENVIRONMENT_ALIASES: Record<string, Environment> = {
-  dev: 'dev',
-  development: 'dev',
-  test: 'test',
-  testing: 'test',
-  staging: 'test',
-  stage: 'test',
-  qa: 'test',
-  prod: 'prod',
-  production: 'prod'
-};
+// A `Map` rather than a plain object: `raw.toLowerCase()` below is
+// attacker/input-controlled (it comes straight from a Terraform tag or
+// attribute), and a plain-object lookup returns inherited members for keys
+// like `__proto__`/`constructor`/`toString` instead of `undefined`.
+const ENVIRONMENT_ALIASES = new Map<string, Environment>([
+  ['dev', 'dev'],
+  ['development', 'dev'],
+  ['test', 'test'],
+  ['testing', 'test'],
+  ['staging', 'test'],
+  ['stage', 'test'],
+  ['qa', 'test'],
+  ['prod', 'prod'],
+  ['production', 'prod']
+]);
 
 export const readTags = (
   values: TerraformValues | undefined
@@ -52,11 +56,27 @@ export const deriveEnvironment = (
 
   if (!raw) return undefined;
 
-  return ENVIRONMENT_ALIASES[raw.toLowerCase()];
+  return ENVIRONMENT_ALIASES.get(raw.toLowerCase());
+};
+
+// Whether an S3 `server_side_encryption_configuration` value is a real
+// configuration block rather than the "unset" shapes `terraform show -json`
+// uses for a plan attribute that hasn't been computed yet: `null` (most
+// common), an empty array, or an empty object. Only a non-empty block means
+// encryption is actually configured — anything else is unknown, never a
+// false "encrypted".
+const isRealSseConfig = (value: unknown): boolean => {
+  if (value === null || typeof value !== 'object') return false;
+  return Array.isArray(value)
+    ? value.length > 0
+    : Object.keys(value).length > 0;
 };
 
 // `storage_encrypted` (RDS), `encrypted` (EBS/EFS/SQS/etc.) or the presence
-// of an S3 server-side-encryption configuration block.
+// of a real S3 server-side-encryption configuration block. Only a literal
+// `true`/`false` (never `null`, a missing attribute, or a present-but-empty
+// SSE block) decides the result — anything else is unknown, reported as
+// `undefined` rather than guessed.
 export const deriveEncryptedAtRest = (
   values: TerraformValues | undefined
 ): boolean | undefined => {
@@ -68,7 +88,7 @@ export const deriveEncryptedAtRest = (
   if (typeof values.encrypted === 'boolean') {
     return values.encrypted;
   }
-  if (values.server_side_encryption_configuration !== undefined) {
+  if (isRealSseConfig(values.server_side_encryption_configuration)) {
     return true;
   }
 

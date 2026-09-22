@@ -50,22 +50,69 @@ describe('deriveEnvironment()', () => {
     ).toBeUndefined();
     expect(deriveEnvironment({}, undefined)).toBeUndefined();
   });
+
+  test('is undefined for a prototype-polluting tag value, never an inherited member', () => {
+    expect(
+      deriveEnvironment({ Environment: '__proto__' }, undefined)
+    ).toBeUndefined();
+    expect(
+      deriveEnvironment({ Environment: 'constructor' }, undefined)
+    ).toBeUndefined();
+    expect(
+      deriveEnvironment({ Environment: 'toString' }, undefined)
+    ).toBeUndefined();
+    expect(
+      deriveEnvironment({ Environment: 'hasOwnProperty' }, undefined)
+    ).toBeUndefined();
+  });
 });
 
 describe('deriveEncryptedAtRest()', () => {
-  test('reads storage_encrypted', () => {
+  test('reads a literal storage_encrypted', () => {
     expect(deriveEncryptedAtRest({ storage_encrypted: true })).toBe(true);
     expect(deriveEncryptedAtRest({ storage_encrypted: false })).toBe(false);
   });
 
-  test('reads encrypted when storage_encrypted is absent', () => {
-    expect(deriveEncryptedAtRest({ encrypted: true })).toBe(true);
+  test('is undefined when storage_encrypted is null rather than a literal boolean', () => {
+    expect(deriveEncryptedAtRest({ storage_encrypted: null })).toBeUndefined();
   });
 
-  test('treats a present SSE configuration as encrypted', () => {
+  test('reads a literal encrypted when storage_encrypted is absent', () => {
+    expect(deriveEncryptedAtRest({ encrypted: true })).toBe(true);
+    expect(deriveEncryptedAtRest({ encrypted: false })).toBe(false);
+  });
+
+  test('is undefined when encrypted is null rather than a literal boolean', () => {
+    expect(deriveEncryptedAtRest({ encrypted: null })).toBeUndefined();
+  });
+
+  test('treats a non-empty SSE configuration as encrypted', () => {
+    expect(
+      deriveEncryptedAtRest({
+        server_side_encryption_configuration: {
+          rule: {
+            apply_server_side_encryption_by_default: { sse_algorithm: 'AES256' }
+          }
+        }
+      })
+    ).toBe(true);
+    expect(
+      deriveEncryptedAtRest({
+        server_side_encryption_configuration: [{ rule: {} }]
+      })
+    ).toBe(true);
+  });
+
+  test('is undefined for the "unset" SSE shapes a plan uses, never a false positive', () => {
+    expect(
+      deriveEncryptedAtRest({ server_side_encryption_configuration: null })
+    ).toBeUndefined();
+    expect(
+      deriveEncryptedAtRest({ server_side_encryption_configuration: [] })
+    ).toBeUndefined();
     expect(
       deriveEncryptedAtRest({ server_side_encryption_configuration: {} })
-    ).toBe(true);
+    ).toBeUndefined();
   });
 
   test('is undefined when nothing indicates encryption either way', () => {

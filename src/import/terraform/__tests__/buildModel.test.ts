@@ -76,7 +76,7 @@ describe('buildTerraformModel() — plan fixture (modules)', () => {
     expect(result.success).toBe(true);
   });
 
-  test('nests the module-scoped subnet inside its module -> vpc -> az chain', () => {
+  test('nests the module-scoped instance directly inside its module zone when no attribute containment resolves', () => {
     const [view] = model.views;
     const zoneIds = getItemZones(
       view,

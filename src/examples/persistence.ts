@@ -200,14 +200,21 @@ export const loadDiagram = async (
   return { ...stored, icons } as InitialData;
 };
 
-// Creates an empty diagram server-side. Throws a DiagramApiError (e.g. 409
-// when the name is already taken, 400 for an invalid name) so callers can
-// show the server's message.
-export const createDiagram = async (name: string): Promise<void> => {
+// Creates a diagram server-side — empty, or seeded with `model` in the same
+// request (POST /api/diagrams accepts `{ name, model }`) so a caller like
+// the Terraform importer can create-with-content atomically instead of
+// create-then-save, which could otherwise leave an empty diagram behind (and
+// block a same-name retry) if the process was interrupted in between. Throws
+// a DiagramApiError (e.g. 409 when the name is already taken, 400 for an
+// invalid name) so callers can show the server's message.
+export const createDiagram = async (
+  name: string,
+  model?: Model
+): Promise<void> => {
   const res = await fetch('/api/diagrams', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name })
+    body: JSON.stringify(model ? { name, model: stripIcons(model) } : { name })
   });
 
   if (!res.ok) {

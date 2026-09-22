@@ -60,7 +60,13 @@ export interface MappedConnector {
 }
 
 export interface TerraformImportSummary {
+  // Real Terraform resources mapped to a zone or item — never counts a
+  // synthesized zone (see `synthesizedZones`).
   mappedResources: number;
+  // Zones with no dedicated Terraform resource, inferred to hold the model
+  // together: per-VPC availability-zone zones, region zones, and the
+  // module-nesting fallback zones.
+  synthesizedZones: number;
   skippedResources: number;
   skippedTypes: string[];
   dataResources: number;
@@ -83,10 +89,20 @@ interface InternalResource {
   type: string;
   name: string;
   modulePath: string[];
+  // The `[...]` index/for_each key off this resource's own address (e.g.
+  // `"1"` for `aws_subnet.private[1]`), if any — used to align a counted
+  // resource against a counted reference to it (see `resolveSingle`).
+  index?: string;
   mapping: TerraformResourceMapping;
   values: TerraformValues;
 }
 
+// `mod.resources`/`mod.child_modules` are guarded here (rather than trusted
+// as arrays) so a malformed `terraform show -json` document — e.g. a
+// resources field that is an object or a string — surfaces as a clean
+// TerraformImportError instead of a raw TypeError out of `.forEach`. A
+// genuinely absent field (`undefined`) is a normal empty module, not an
+// error.
 const collectRawResources = (
   rootModule: TerraformModuleRaw | undefined
 ): TerraformResourceRaw[] => {
@@ -95,9 +111,20 @@ const collectRawResources = (
   const result: TerraformResourceRaw[] = [];
 
   const walk = (mod: TerraformModuleRaw) => {
+    if (mod.resources !== undefined && !Array.isArray(mod.resources)) {
+      throw new TerraformImportError(
+        "Not a recognized terraform show -json document: a module's `resources` is not an array."
+      );
+    }
     (mod.resources ?? []).forEach((resource) => {
       result.push(resource);
     });
+
+    if (mod.child_modules !== undefined && !Array.isArray(mod.child_modules)) {
+      throw new TerraformImportError(
+        'Not a recognized terraform show -json document: `child_modules` is not an array.'
+      );
+    }
     (mod.child_modules ?? []).forEach(walk);
   };
 
@@ -119,10 +146,23 @@ const collectConfigResources = (
   const result: ConfigEntry[] = [];
 
   const walk = (mod: TerraformConfigModule, modulePath: string[]) => {
+    if (mod.resources !== undefined && !Array.isArray(mod.resources)) {
+      throw new TerraformImportError(
+        "Not a recognized terraform show -json document: a configuration module's `resources` is not an array."
+      );
+    }
     (mod.resources ?? []).forEach((resource) => {
       result.push({ modulePath, resource });
     });
 
+    if (
+      mod.module_calls !== undefined &&
+      (typeof mod.module_calls !== 'object' || Array.isArray(mod.module_calls))
+    ) {
+      throw new TerraformImportError(
+        'Not a recognized terraform show -json document: `module_calls` is not an object.'
+      );
+    }
     Object.entries(mod.module_calls ?? {}).forEach(([callName, call]) => {
       if (call?.module) walk(call.module, [...modulePath, callName]);
     });
@@ -198,6 +238,7 @@ export const resolveTerraform = (
       type: raw.type,
       name: raw.name,
       modulePath: parsed.modulePath,
+      index: parsed.index,
       mapping,
       values: raw.values ?? {}
     });
@@ -231,6 +272,27 @@ export const resolveTerraform = (
     )?.resource;
   };
 
+  // The zone kind a literal id/arn match must land on for a given attribute
+  // — `byLiteralValue` is a single global id/arn index across every mapped
+  // resource type, so without this a `vpc_id`/`subnet_id` could coincidentally
+  // match a same-valued id/arn on an unrelated resource kind.
+  const EXPECTED_ZONE_KIND_BY_ATTR: Record<string, ZoneKind> = {
+    vpc_id: 'vpc',
+    subnet_id: 'subnet'
+  };
+
+  const matchesExpectedZoneKind = (
+    attr: string,
+    candidate: InternalResource
+  ): boolean => {
+    const expected = EXPECTED_ZONE_KIND_BY_ATTR[attr];
+    if (!expected) return true;
+
+    return (
+      candidate.mapping.kind === 'zone' && candidate.mapping.zone === expected
+    );
+  };
+
   // Resolves a single-valued attribute reference (`vpc_id`, `subnet_id`,
   // ...) to the mapped resource it points at — preferring a config
   // reference (plan, pre-apply) and falling back to matching a literal
@@ -248,12 +310,38 @@ export const resolveTerraform = (
         const candidates = byBlock.get(
           blockKey(resource.modulePath, parsedRef.type, parsedRef.name)
         );
-        if (candidates && candidates.length > 0) return candidates[0];
+
+        if (candidates && candidates.length === 1) {
+          return candidates[0];
+        }
+
+        if (candidates && candidates.length > 1) {
+          // A counted/for_each block: candidates[0] would silently collapse
+          // every instance of `resource` onto the referenced block's first
+          // instance. Only resolve when `resource` is itself indexed and a
+          // candidate shares that exact index (counts align) — otherwise
+          // fall through to the literal id/arn match below rather than
+          // guessing which instance was meant.
+          const aligned =
+            resource.index !== undefined
+              ? candidates.find((candidate) => {
+                  return candidate.index === resource.index;
+                })
+              : undefined;
+
+          if (aligned) return aligned;
+        }
       }
     }
 
     const literal = resource.values[attr];
-    if (typeof literal === 'string') return byLiteralValue.get(literal);
+    if (typeof literal === 'string') {
+      const candidate = byLiteralValue.get(literal);
+      if (candidate && matchesExpectedZoneKind(attr, candidate)) {
+        return candidate;
+      }
+      return undefined;
+    }
 
     return undefined;
   };
@@ -301,10 +389,17 @@ export const resolveTerraform = (
   const zonesById = new Map<string, MappedZone>();
   const parentId = new Map<string, string>();
 
+  // Zones with no dedicated Terraform resource behind them (region/AZ/module
+  // fallback zones — see the `ensure*Zone` helpers and `ensureModuleZone`
+  // below). Tracked separately so the import summary can report real mapped
+  // resources without inflating that count with inferred structure.
+  const synthesizedZoneIds = new Set<string>();
+
   const ensureRegionZone = (region: string): string => {
     const id = `region:${region}`;
     if (!zonesById.has(id)) {
       zonesById.set(id, { kind: 'zone', id, zoneType: 'region', name: region });
+      synthesizedZoneIds.add(id);
     }
     return id;
   };
@@ -316,6 +411,7 @@ export const resolveTerraform = (
     const id = `${vpcId ?? 'global'}:az:${az}`;
     if (!zonesById.has(id)) {
       zonesById.set(id, { kind: 'zone', id, zoneType: 'az', name: az });
+      synthesizedZoneIds.add(id);
       if (vpcId) parentId.set(id, vpcId);
     }
     return id;
@@ -475,6 +571,7 @@ export const resolveTerraform = (
           zoneType: 'cluster',
           name: path[path.length - 1]
         });
+        synthesizedZoneIds.add(id);
         if (parent) parentId.set(id, parent);
       }
 
@@ -569,7 +666,8 @@ export const resolveTerraform = (
     parentId,
     connectors: [...connectorPairs.values()],
     summary: {
-      mappedResources: zonesById.size + items.length,
+      mappedResources: zonesById.size - synthesizedZoneIds.size + items.length,
+      synthesizedZones: synthesizedZoneIds.size,
       skippedResources,
       skippedTypes: [...skippedTypes].sort(),
       dataResources

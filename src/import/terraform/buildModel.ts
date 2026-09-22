@@ -7,6 +7,7 @@
 // unconstrained free text.
 import { generateId } from 'src/utils';
 import { Connector, Model, Rectangle, View, ViewItem } from 'src/types';
+import { DESCRIPTION_MAX_LENGTH } from 'src/schemas/common';
 import { resolveTerraform, TerraformImportSummary } from './resolve';
 import { layoutTerraformZones } from './layout';
 import { TerraformShowJson } from './types';
@@ -42,7 +43,7 @@ export const buildTerraformModel = (
     return {
       id: item.id,
       name: clamp(item.name, NAME_MAX) ?? item.id,
-      description: clamp(item.description, 1000),
+      description: clamp(item.description, DESCRIPTION_MAX_LENGTH),
       kind: item.resourceKind,
       environment: item.environment,
       engine: clamp(item.engine, LABEL_MAX),

@@ -1,5 +1,4 @@
 import { TerraformImportError } from './resolve';
-import { buildTerraformModel, TerraformImportResult } from './buildModel';
 import { TerraformShowJson } from './types';
 
 export { TERRAFORM_RESOURCE_MAP } from './resourceMap';
@@ -51,12 +50,4 @@ export const parseTerraformImportSource = (
   }
 
   return parsed as TerraformShowJson;
-};
-
-export const importTerraform = (
-  source: string,
-  diagramTitle: string
-): TerraformImportResult => {
-  const doc = parseTerraformImportSource(source);
-  return buildTerraformModel(doc, diagramTitle);
 };

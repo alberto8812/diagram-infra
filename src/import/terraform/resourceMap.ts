@@ -22,7 +22,7 @@ export const TERRAFORM_RESOURCE_MAP: Record<string, TerraformResourceMapping> =
     aws_vpc: { kind: 'zone', zone: 'vpc' },
     aws_subnet: { kind: 'zone', zone: 'subnet' },
     // Only rendered when at least one mapped item references it — see
-    // resolve.ts (`hasMembers`).
+    // resolve.ts (`sgHasMembers`).
     aws_security_group: { kind: 'zone', zone: 'securityGroup' },
 
     aws_instance: { kind: 'item', resourceKind: 'service' },

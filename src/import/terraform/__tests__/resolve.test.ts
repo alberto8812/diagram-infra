@@ -112,9 +112,176 @@ describe('resolveTerraform() — state (vpc + 2 subnets + instance + db + s3 + a
     expect(result.connectors).toStrictEqual([]);
   });
 
-  test('reports the mapped resource count', () => {
-    // 4 zones (vpc, 2 subnets, 1 shared az) + 4 items (instance, db, s3, alb)
-    expect(result.summary.mappedResources).toBe(8);
+  test('reports the mapped resource count, excluding the synthesized AZ zone', () => {
+    // 3 real zones (vpc, 2 subnets) + 4 items (instance, db, s3, alb) — the
+    // shared AZ zone has no backing Terraform resource, so it is reported
+    // separately as a synthesized zone instead of inflating this count.
+    expect(result.summary.mappedResources).toBe(7);
+    expect(result.summary.synthesizedZones).toBe(1);
+  });
+
+  test('does not resolve a literal subnet_id/vpc_id match against a candidate of the wrong zone kind', () => {
+    // aws_lb.main's id/arn deliberately collides with a value that would
+    // otherwise satisfy the literal fallback if it weren't kind-checked —
+    // it is neither a vpc nor a subnet, so vpc_id/subnet_id must never
+    // resolve to it.
+    const mismatchDoc: TerraformShowJson = {
+      values: {
+        root_module: {
+          resources: [
+            {
+              address: 'aws_lb.main',
+              mode: 'managed',
+              type: 'aws_lb',
+              name: 'main',
+              values: { id: 'shared-id-001' }
+            },
+            {
+              address: 'aws_instance.web',
+              mode: 'managed',
+              type: 'aws_instance',
+              name: 'web',
+              values: { id: 'i-999', subnet_id: 'shared-id-001' }
+            }
+          ]
+        }
+      }
+    };
+
+    const kindMismatch = resolveTerraform(mismatchDoc);
+    expect(kindMismatch.parentId.has('aws_instance.web')).toBe(false);
+  });
+});
+
+describe('resolveTerraform() — counted/for_each config references', () => {
+  const configuredDoc = (
+    webIndex: string,
+    subnetReferences: string[]
+  ): TerraformShowJson => {
+    return {
+      values: {
+        root_module: {
+          resources: [
+            {
+              address: 'aws_subnet.private[0]',
+              mode: 'managed',
+              type: 'aws_subnet',
+              name: 'private',
+              values: { id: 'subnet-0' }
+            },
+            {
+              address: 'aws_subnet.private[1]',
+              mode: 'managed',
+              type: 'aws_subnet',
+              name: 'private',
+              values: { id: 'subnet-1' }
+            },
+            {
+              address: `aws_instance.web[${webIndex}]`,
+              mode: 'managed',
+              type: 'aws_instance',
+              name: 'web',
+              values: { id: `i-${webIndex}` }
+            }
+          ]
+        }
+      },
+      configuration: {
+        root_module: {
+          resources: [
+            {
+              address: 'aws_subnet.private',
+              type: 'aws_subnet',
+              name: 'private',
+              expressions: {}
+            },
+            {
+              address: 'aws_instance.web',
+              type: 'aws_instance',
+              name: 'web',
+              expressions: {
+                subnet_id: { references: subnetReferences }
+              }
+            }
+          ]
+        }
+      }
+    };
+  };
+
+  test('aligns to the same instance index when both the referrer and the referenced block are counted', () => {
+    const doc = configuredDoc('1', ['aws_subnet.private[count.index]']);
+    const result = resolveTerraform(doc);
+
+    expect(result.parentId.get('aws_instance.web[1]')).toBe(
+      'aws_subnet.private[1]'
+    );
+  });
+
+  test('leaves containment unresolved when the referrer has no index to align with a counted block', () => {
+    // aws_instance.web is *not* itself indexed here, so there is no index to
+    // align against `aws_subnet.private`'s two instances — resolving to
+    // candidates[0] would silently guess subnet-0 every time.
+    const doc: TerraformShowJson = {
+      values: {
+        root_module: {
+          resources: [
+            {
+              address: 'aws_subnet.private[0]',
+              mode: 'managed',
+              type: 'aws_subnet',
+              name: 'private',
+              values: { id: 'subnet-0' }
+            },
+            {
+              address: 'aws_subnet.private[1]',
+              mode: 'managed',
+              type: 'aws_subnet',
+              name: 'private',
+              values: { id: 'subnet-1' }
+            },
+            {
+              address: 'aws_instance.web',
+              mode: 'managed',
+              type: 'aws_instance',
+              name: 'web',
+              values: { id: 'i-solo' }
+            }
+          ]
+        }
+      },
+      configuration: {
+        root_module: {
+          resources: [
+            {
+              address: 'aws_subnet.private',
+              type: 'aws_subnet',
+              name: 'private',
+              expressions: {}
+            },
+            {
+              address: 'aws_instance.web',
+              type: 'aws_instance',
+              name: 'web',
+              expressions: {
+                subnet_id: { references: ['aws_subnet.private[count.index]'] }
+              }
+            }
+          ]
+        }
+      }
+    };
+
+    const result = resolveTerraform(doc);
+    expect(result.parentId.has('aws_instance.web')).toBe(false);
+  });
+
+  test('leaves containment unresolved when the referrer is indexed but no candidate shares that index', () => {
+    // Misaligned counts: aws_instance.web[2] has no aws_subnet.private[2].
+    const doc = configuredDoc('2', ['aws_subnet.private[count.index]']);
+    const result = resolveTerraform(doc);
+
+    expect(result.parentId.has('aws_instance.web[2]')).toBe(false);
   });
 });
 

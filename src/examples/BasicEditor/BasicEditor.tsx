@@ -166,6 +166,10 @@ const suggestDiagramName = (fileName: string): string => {
 const summaryLine = (summary: TerraformImportSummary): string => {
   const parts = [`${summary.mappedResources} resource(s) mapped`];
 
+  if (summary.synthesizedZones > 0) {
+    parts.push(`${summary.synthesizedZones} zone(s) inferred`);
+  }
+
   if (summary.skippedResources > 0) {
     const types = summary.skippedTypes.length
       ? ` (${summary.skippedTypes.join(', ')})`
@@ -496,11 +500,17 @@ export const BasicEditor = () => {
   };
 
   const handleImportSubmit = async (name: string, model: Model) => {
-    await createDiagram(name);
-    await saveDiagram(name, model);
+    // Single server call: create() with the model already attached, so a
+    // failure never leaves an empty diagram behind that would block a
+    // same-name retry (see createDiagram() in ../persistence). The dialog
+    // stays mounted (setImportState(null) only after switchDiagram
+    // resolves) so a thrown DiagramApiError is still caught by the
+    // dialog's own handleSubmit and rendered there instead of being
+    // dropped on an already-unmounted dialog.
+    await createDiagram(name, model);
+    await switchDiagram(name);
 
     setImportState(null);
-    await switchDiagram(name);
     refreshDiagramList();
   };
 
