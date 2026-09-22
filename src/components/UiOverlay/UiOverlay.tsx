@@ -17,6 +17,7 @@ import { useModelStore } from 'src/stores/modelStore';
 import { FlowPlaybackBar } from 'src/components/FlowControls/FlowPlaybackBar';
 import { FlowEditorDialog } from 'src/components/FlowControls/FlowEditorDialog';
 import { ViewSwitcher } from 'src/components/ViewSwitcher/ViewSwitcher';
+import { IssuesPanel } from 'src/components/IssuesPanel/IssuesPanel';
 import { ExportImageDialog } from '../ExportImageDialog/ExportImageDialog';
 
 const ToolsEnum = {
@@ -153,6 +154,30 @@ export const UiOverlay = () => {
           >
             <ToolMenu />
           </Box>
+        )}
+
+        {availableTools.includes('TOOL_MENU') && dialog === 'ISSUES' && (
+          <UiElement
+            sx={{
+              position: 'absolute',
+              transform: 'translateX(-100%)',
+              overflowY: 'scroll',
+              '&::-webkit-scrollbar': {
+                display: 'none'
+              }
+            }}
+            style={{
+              left: rendererSize.width - appPadding.x,
+              top: panelTop,
+              maxHeight: bottomEdge - controlHeight - spacing(1) - panelTop
+            }}
+          >
+            <IssuesPanel
+              onClose={() => {
+                return uiStateActions.setDialog(null);
+              }}
+            />
+          </UiElement>
         )}
 
         {(availableTools.includes('MAIN_MENU') ||
