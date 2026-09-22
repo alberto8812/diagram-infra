@@ -62,7 +62,7 @@ export const updateView = (
 ): State => {
   const newState = produce(ctx.state, (draft) => {
     const view = getItemByIdOrThrow(draft.model.views, ctx.viewId);
-    view.value = { ...view.value, ...updates };
+    draft.model.views[view.index] = { ...view.value, ...updates };
   });
 
   return newState;

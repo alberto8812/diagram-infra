@@ -10,3 +10,4 @@ export * from './flowPacket';
 export * from './flow';
 export * from './isometricBlock';
 export * from './parsePortInput';
+export * from './views';

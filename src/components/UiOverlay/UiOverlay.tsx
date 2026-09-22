@@ -13,10 +13,10 @@ import { ZoomControls } from 'src/components/ZoomControls/ZoomControls';
 import { DebugUtils } from 'src/components/DebugUtils/DebugUtils';
 import { useResizeObserver } from 'src/hooks/useResizeObserver';
 import { ContextMenuManager } from 'src/components/ContextMenu/ContextMenuManager';
-import { useScene } from 'src/hooks/useScene';
 import { useModelStore } from 'src/stores/modelStore';
 import { FlowPlaybackBar } from 'src/components/FlowControls/FlowPlaybackBar';
 import { FlowEditorDialog } from 'src/components/FlowControls/FlowEditorDialog';
+import { ViewSwitcher } from 'src/components/ViewSwitcher/ViewSwitcher';
 import { ExportImageDialog } from '../ExportImageDialog/ExportImageDialog';
 
 const ToolsEnum = {
@@ -83,7 +83,6 @@ export const UiOverlay = () => {
   const itemControls = useUiStateStore((state) => {
     return state.itemControls;
   });
-  const { currentView } = useScene();
   const editorMode = useUiStateStore((state) => {
     return state.editorMode;
   });
@@ -178,8 +177,7 @@ export const UiOverlay = () => {
                   alignItems: 'center',
                   minWidth: 0,
                   px: 1.5,
-                  height: controlHeight,
-                  pointerEvents: 'none'
+                  height: controlHeight
                 }}
               >
                 <Stack
@@ -193,18 +191,14 @@ export const UiOverlay = () => {
                     fontWeight={600}
                     color="text.secondary"
                     noWrap
+                    sx={{ pointerEvents: 'none' }}
                   >
                     {title}
                   </Typography>
-                  <ChevronRight />
-                  <Typography
-                    variant="body2"
-                    fontWeight={600}
-                    color="text.primary"
-                    noWrap
-                  >
-                    {currentView.name}
-                  </Typography>
+                  <ChevronRight sx={{ pointerEvents: 'none' }} />
+                  <ViewSwitcher
+                    editable={availableTools.includes('MAIN_MENU')}
+                  />
                 </Stack>
               </UiElement>
             )}
