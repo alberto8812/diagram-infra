@@ -37,43 +37,57 @@
       "id": "83f4b023-2b2a-40ea-bcf0-d03a26f479d0",
       "name": "Desarrollador",
       "icon": "user",
-      "description": "<p>Edita el procedure y abre el PR</p>"
+      "description": "<p>Edita el procedure y abre el PR</p>",
+      "kind": "user"
     },
     {
       "id": "6c569cce-3c46-4697-97c8-981154c8be57",
       "name": "PC",
       "icon": "laptop",
-      "description": "<p>sql/R__sp_actualizar_pedido.sql</p><p>flyway migrate (local)</p>"
+      "description": "<p>sql/R__sp_actualizar_pedido.sql</p><p>flyway migrate (local)</p>",
+      "kind": "external",
+      "environment": "dev"
     },
     {
       "id": "5bb977e1-9688-4b68-8481-d6681565c1c8",
       "name": "git push",
       "icon": "git",
-      "description": "<p>Rama de feature</p>"
+      "description": "<p>Rama de feature</p>",
+      "kind": "external"
     },
     {
       "id": "2d40ed89-c906-4115-97e5-d7eb7ed0ec1b",
       "name": "Pull Request",
       "icon": "github",
-      "description": "<p>Ruleset sobre main: ambos checks obligatorios</p>"
+      "description": "<p>Ruleset sobre main: ambos checks obligatorios</p>",
+      "kind": "external"
     },
     {
       "id": "a93d5438-0900-4c9c-aa82-0f75378bcc99",
       "name": "pr-check.yml",
       "icon": "gh-actions",
-      "description": "<p>Runner de GitHub</p><p>1. Applied migrations are not edited</p><p>2. Migrations run from an empty schema</p>"
+      "description": "<p>Runner de GitHub</p><p>1. Applied migrations are not edited</p><p>2. Migrations run from an empty schema</p>",
+      "kind": "runner",
+      "environment": "test"
     },
     {
       "id": "88a3fd43-fa67-4008-9d96-e4985cf8a58e",
       "name": "MySQL descartable",
       "icon": "mysql",
-      "description": "<p>Contenedor efimero. Ninguna base real interviene en el PR.</p>"
+      "description": "<p>Contenedor efimero. Ninguna base real interviene en el PR.</p>",
+      "kind": "database",
+      "engine": "mysql",
+      "environment": "test",
+      "port": 3306,
+      "dataClassification": "public"
     },
     {
       "id": "cc457ec0-914f-4447-80a3-3deb0a21ec92",
       "name": "main",
       "icon": "github",
-      "description": "<p>merge (paths: sql/**)</p>"
+      "description": "<p>merge (paths: sql/**)</p>",
+      "kind": "external",
+      "iconStyle": "BLOCK"
     },
     {
       "id": "44067b3b-2c98-4386-8395-353c6bec85d9",
@@ -84,55 +98,99 @@
       "id": "93914f2e-935e-44fc-8fe1-860476685f25",
       "name": "VPC interna (AWS)",
       "icon": "aws-vpc",
-      "description": "<p>Sin ruta desde internet. 3306 solo desde el Security Group del runner.</p>"
+      "description": "<p>Sin ruta desde internet. 3306 solo desde el Security Group del runner.</p>",
+      "kind": "network",
+      "environment": "prod",
+      "region": "us-east-1"
     },
     {
       "id": "wf-flyway-migrate",
       "name": "flyway-migrate.yml",
       "icon": "gh-actions",
-      "description": "<p>runs-on: [self-hosted, linux, vpc-interna]</p><p>info -&gt; validate -&gt; migrate -&gt; info</p>"
+      "description": "<p>runs-on: [self-hosted, linux, vpc-interna]</p><p>info -&gt; validate -&gt; migrate -&gt; info</p>",
+      "kind": "runner",
+      "environment": "prod"
     },
     {
       "id": "9313a642-f337-4075-af4e-25c0b7b3bcf9",
       "name": "Runner self-hosted",
       "icon": "aws-ec2",
-      "description": "<p>EC2 propia dentro de la VPC</p><p>Ejecuta el Flyway CLI</p>"
+      "description": "<p>EC2 propia dentro de la VPC</p><p>Ejecuta el Flyway CLI</p>",
+      "kind": "runner",
+      "environment": "prod",
+      "region": "us-east-1",
+      "size": "t3.medium",
+      "count": 1,
+      "iconStyle": "BLOCK"
     },
     {
       "id": "83710468-d7f2-4137-bf61-23a97b59f13e",
       "name": "Flyway CLI",
       "icon": "flyway",
-      "description": "<p>10.20.1</p><p>FLYWAY_CLEAN_DISABLED=true</p>"
+      "description": "<p>10.20.1</p><p>FLYWAY_CLEAN_DISABLED=true</p>",
+      "kind": "service",
+      "environment": "prod"
     },
     {
       "id": "1d8db82e-535e-4541-86c9-d5d068ea6730",
       "name": "MySQL dev",
       "icon": "storage",
-      "description": "<p>environment: dev</p><p>Esquema en la EC2 compartida</p>"
+      "description": "<p>environment: dev</p><p>Esquema en la EC2 compartida</p>",
+      "kind": "database",
+      "engine": "mysql",
+      "environment": "dev",
+      "port": 3306,
+      "storageGb": 20,
+      "dataClassification": "internal"
     },
     {
       "id": "336bc4d8-eebb-438d-b79b-0882d9e693f8",
       "name": "MySQL testing",
       "icon": "storage",
-      "description": "<p>environment: test</p><p>Mismo host que dev - espera aprobacion</p>"
+      "description": "<p>environment: test</p><p>Mismo host que dev - espera aprobacion</p>",
+      "kind": "database",
+      "engine": "mysql",
+      "environment": "test",
+      "port": 3306,
+      "storageGb": 20,
+      "dataClassification": "internal"
     },
     {
       "id": "b8cb5167-4a87-4105-acf0-67656a906365",
       "name": "MySQL Safi",
       "icon": "aws-rds-on-vmware",
-      "description": "<p>environment: production</p><p>Host aparte - espera aprobacion</p>"
+      "description": "<p>environment: production</p><p>Host aparte - espera aprobacion</p>",
+      "kind": "database",
+      "engine": "mysql",
+      "environment": "prod",
+      "region": "us-east-1",
+      "port": 3306,
+      "storageGb": 100,
+      "dataClassification": "confidential"
     },
     {
       "id": "reviewer-prod",
       "name": "Reviewer requerido",
       "icon": "user",
-      "description": "<p>environment: production - protection rule</p>"
+      "description": "<p>environment: production - protection rule</p>",
+      "kind": "user"
     },
     {
       "id": "reviewer-test",
       "name": "Reviewer requerido",
       "icon": "user",
-      "description": "<p>environment: test - protection rule</p>"
+      "description": "<p>environment: test - protection rule</p>",
+      "kind": "user"
+    },
+    {
+      "id": "d8820ba7-cc07-44b5-b998-ded0c7e5a895",
+      "name": "Untitled",
+      "icon": "k8s-c-c-m"
+    },
+    {
+      "id": "92b0bc2a-6e44-43e3-bfd4-bfa74fb91d26",
+      "name": "Untitled",
+      "icon": "azure-abs-member"
     }
   ],
   "views": [
@@ -173,7 +231,7 @@
           }
         },
         {
-          "labelHeight": 160,
+          "labelHeight": 260,
           "id": "a93d5438-0900-4c9c-aa82-0f75378bcc99",
           "tile": {
             "x": -13,
@@ -181,11 +239,11 @@
           }
         },
         {
-          "labelHeight": 80,
+          "labelHeight": 220,
           "id": "88a3fd43-fa67-4008-9d96-e4985cf8a58e",
           "tile": {
             "x": -13,
-            "y": -2
+            "y": -4
           }
         },
         {
@@ -193,14 +251,14 @@
           "id": "cc457ec0-914f-4447-80a3-3deb0a21ec92",
           "tile": {
             "x": -14,
-            "y": -6
+            "y": -8
           }
         },
         {
           "labelHeight": 80,
           "id": "44067b3b-2c98-4386-8395-353c6bec85d9",
           "tile": {
-            "x": -7,
+            "x": 6,
             "y": 5
           }
         },
@@ -216,48 +274,48 @@
           "labelHeight": 100,
           "id": "wf-flyway-migrate",
           "tile": {
-            "x": -7,
-            "y": -4
+            "x": -5,
+            "y": 2
           }
         },
         {
-          "labelHeight": 200,
+          "labelHeight": 60,
           "id": "9313a642-f337-4075-af4e-25c0b7b3bcf9",
           "tile": {
-            "x": -6,
-            "y": -6
+            "x": -5,
+            "y": -1
           }
         },
         {
-          "labelHeight": 40,
+          "labelHeight": 180,
           "id": "83710468-d7f2-4137-bf61-23a97b59f13e",
           "tile": {
-            "x": -7,
-            "y": -8
+            "x": -6,
+            "y": -7
           }
         },
         {
           "labelHeight": 100,
           "id": "1d8db82e-535e-4541-86c9-d5d068ea6730",
           "tile": {
-            "x": -5,
-            "y": -14
+            "x": -3,
+            "y": -11
           }
         },
         {
           "labelHeight": 120,
           "id": "336bc4d8-eebb-438d-b79b-0882d9e693f8",
           "tile": {
-            "x": -2,
-            "y": -13
+            "x": 0,
+            "y": -11
           }
         },
         {
           "labelHeight": 100,
           "id": "b8cb5167-4a87-4105-acf0-67656a906365",
           "tile": {
-            "x": -2,
-            "y": -4
+            "x": -1,
+            "y": -1
           }
         },
         {
@@ -265,19 +323,43 @@
           "id": "reviewer-prod",
           "tile": {
             "x": 2,
-            "y": -4
+            "y": -1
           }
         },
         {
           "labelHeight": 60,
           "id": "reviewer-test",
           "tile": {
-            "x": 0,
-            "y": -14
+            "x": 3,
+            "y": -11
           }
         }
       ],
       "connectors": [
+        {
+          "id": "c9a59d19-bf5a-44f8-b93e-8e83db365536",
+          "color": "color1",
+          "anchors": [
+            {
+              "id": "e87f46cf-4466-4c8b-b5f3-f2bde0c0ba14",
+              "ref": {
+                "item": "wf-flyway-migrate"
+              }
+            },
+            {
+              "id": "b29d7d3d-a4e5-4cf2-a947-6ed422c79de1",
+              "ref": {
+                "item": "9313a642-f337-4075-af4e-25c0b7b3bcf9"
+              }
+            }
+          ],
+          "animated": true,
+          "width": 20,
+          "description": "send-call-to-runner",
+          "protocol": "HTTPS",
+          "mode": "async",
+          "auth": "token"
+        },
         {
           "id": "abc7bcca-a83c-4087-ae11-7cd7180e7ea6",
           "color": "color1",
@@ -294,7 +376,9 @@
                 "item": "6c569cce-3c46-4697-97c8-981154c8be57"
               }
             }
-          ]
+          ],
+          "animated": true,
+          "direction": "FORWARD"
         },
         {
           "id": "00bf9c45-eb50-4414-91b3-a4130af9f3a0",
@@ -312,7 +396,12 @@
                 "item": "5bb977e1-9688-4b68-8481-d6681565c1c8"
               }
             }
-          ]
+          ],
+          "animated": true,
+          "direction": "FORWARD",
+          "protocol": "SSH",
+          "mode": "sync",
+          "auth": "token"
         },
         {
           "id": "b07b929b-4c94-4d8e-8794-9c0aaf24f441",
@@ -330,7 +419,12 @@
                 "item": "2d40ed89-c906-4115-97e5-d7eb7ed0ec1b"
               }
             }
-          ]
+          ],
+          "animated": true,
+          "direction": "FORWARD",
+          "protocol": "HTTPS",
+          "mode": "sync",
+          "auth": "token"
         },
         {
           "id": "0451f940-78b0-4a09-94ee-9bba8991d849",
@@ -348,7 +442,12 @@
                 "item": "a93d5438-0900-4c9c-aa82-0f75378bcc99"
               }
             }
-          ]
+          ],
+          "animated": true,
+          "direction": "FORWARD",
+          "protocol": "HTTPS",
+          "mode": "async",
+          "auth": "token"
         },
         {
           "id": "7d19fd17-58c7-46eb-ae58-3c4fdd0c32b2",
@@ -367,7 +466,13 @@
                 "item": "88a3fd43-fa67-4008-9d96-e4985cf8a58e"
               }
             }
-          ]
+          ],
+          "animated": true,
+          "direction": "FORWARD",
+          "protocol": "SQL",
+          "port": 3306,
+          "mode": "sync",
+          "auth": "basic"
         },
         {
           "id": "b2b8f625-584e-4a44-b8c2-65c4e9caac70",
@@ -385,7 +490,12 @@
                 "item": "cc457ec0-914f-4447-80a3-3deb0a21ec92"
               }
             }
-          ]
+          ],
+          "animated": true,
+          "direction": "FORWARD",
+          "protocol": "HTTPS",
+          "mode": "sync",
+          "auth": "token"
         },
         {
           "id": "conn-cross-vpc",
@@ -397,33 +507,103 @@
               "id": "anchor-cross-1",
               "ref": {
                 "item": "cc457ec0-914f-4447-80a3-3deb0a21ec92"
-              }
+              },
+              "ordering": 0
+            },
+            {
+              "id": "e0d2913e-180b-4002-b88d-30fd3524c222",
+              "ref": {
+                "tile": {
+                  "x": -6,
+                  "y": 2
+                }
+              },
+              "ordering": 8
             },
             {
               "id": "anchor-cross-2",
               "ref": {
                 "item": "wf-flyway-migrate"
+              },
+              "ordering": 10
+            }
+          ],
+          "animated": true,
+          "direction": "FORWARD",
+          "style": "SOLID",
+          "path": {
+            "tiles": [
+              {
+                "x": 10,
+                "y": 11
+              },
+              {
+                "x": 9,
+                "y": 10
+              },
+              {
+                "x": 8,
+                "y": 9
+              },
+              {
+                "x": 7,
+                "y": 8
+              },
+              {
+                "x": 6,
+                "y": 7
+              },
+              {
+                "x": 5,
+                "y": 6
+              },
+              {
+                "x": 4,
+                "y": 5
+              },
+              {
+                "x": 3,
+                "y": 4
+              },
+              {
+                "x": 3,
+                "y": 3
+              },
+              {
+                "x": 3,
+                "y": 2
+              },
+              {
+                "x": 3,
+                "y": 1
+              },
+              {
+                "x": 3,
+                "y": 1
+              },
+              {
+                "x": 2,
+                "y": 1
+              },
+              {
+                "x": 1,
+                "y": 1
+              }
+            ],
+            "rectangle": {
+              "from": {
+                "x": -4,
+                "y": 3
+              },
+              "to": {
+                "x": -15,
+                "y": -9
               }
             }
-          ]
-        },
-        {
-          "id": "conn-wf-runner",
-          "color": "color1",
-          "anchors": [
-            {
-              "id": "anchor-wfr-1",
-              "ref": {
-                "item": "wf-flyway-migrate"
-              }
-            },
-            {
-              "id": "anchor-wfr-2",
-              "ref": {
-                "item": "9313a642-f337-4075-af4e-25c0b7b3bcf9"
-              }
-            }
-          ]
+          },
+          "protocol": "HTTPS",
+          "mode": "async",
+          "auth": "token"
         },
         {
           "id": "conn-runner-flyway",
@@ -442,7 +622,9 @@
                 "item": "83710468-d7f2-4137-bf61-23a97b59f13e"
               }
             }
-          ]
+          ],
+          "animated": true,
+          "direction": "FORWARD"
         },
         {
           "id": "1cc01db6-ddfe-4c40-9116-be67b216a3ea",
@@ -456,23 +638,155 @@
               "ordering": 0
             },
             {
+              "id": "39a906a5-8e6e-40bf-8f31-56481c8ad7bd",
+              "ref": {
+                "tile": {
+                  "x": -3,
+                  "y": -5
+                }
+              },
+              "ordering": 4
+            },
+            {
+              "id": "630cca46-26a6-485a-8cb4-57a1a8c1ab0b",
+              "ref": {
+                "tile": {
+                  "x": -3,
+                  "y": -8
+                }
+              },
+              "ordering": 8
+            },
+            {
               "id": "7939efff-5ef5-4937-bcc5-97e3346ef575",
               "ref": {
                 "tile": {
-                  "x": -5,
-                  "y": -9
+                  "x": -3,
+                  "y": -8
                 }
               },
-              "ordering": 3
+              "ordering": 9
+            },
+            {
+              "id": "f50d34d4-c236-44f5-aec7-9f46d7bcf97b",
+              "ref": {
+                "tile": {
+                  "x": -4,
+                  "y": -11
+                }
+              },
+              "ordering": 12
+            },
+            {
+              "id": "4e4e4fef-fa32-4fea-a3db-725e8f3bb991",
+              "ref": {
+                "item": "1d8db82e-535e-4541-86c9-d5d068ea6730"
+              },
+              "ordering": 14
             },
             {
               "id": "d63fd777-1319-460e-8602-dc04909055da",
               "ref": {
                 "item": "1d8db82e-535e-4541-86c9-d5d068ea6730"
               },
-              "ordering": 4
+              "ordering": 14
             }
-          ]
+          ],
+          "animated": true,
+          "direction": "FORWARD",
+          "width": 10,
+          "description": "",
+          "style": "SOLID",
+          "path": {
+            "tiles": [
+              {
+                "x": 3,
+                "y": 1
+              },
+              {
+                "x": 2,
+                "y": 2
+              },
+              {
+                "x": 1,
+                "y": 3
+              },
+              {
+                "x": 1,
+                "y": 4
+              },
+              {
+                "x": 1,
+                "y": 5
+              },
+              {
+                "x": 1,
+                "y": 5
+              },
+              {
+                "x": 1,
+                "y": 6
+              },
+              {
+                "x": 1,
+                "y": 7
+              },
+              {
+                "x": 1,
+                "y": 8
+              },
+              {
+                "x": 1,
+                "y": 8
+              },
+              {
+                "x": 2,
+                "y": 8
+              },
+              {
+                "x": 2,
+                "y": 8
+              },
+              {
+                "x": 2,
+                "y": 9
+              },
+              {
+                "x": 2,
+                "y": 10
+              },
+              {
+                "x": 2,
+                "y": 11
+              },
+              {
+                "x": 2,
+                "y": 11
+              },
+              {
+                "x": 1,
+                "y": 11
+              },
+              {
+                "x": 1,
+                "y": 11
+              }
+            ],
+            "rectangle": {
+              "from": {
+                "x": -2,
+                "y": 0
+              },
+              "to": {
+                "x": -6,
+                "y": -12
+              }
+            }
+          },
+          "protocol": "SQL",
+          "port": 3306,
+          "mode": "sync",
+          "auth": "basic"
         },
         {
           "id": "4b96f0fc-1720-4bc6-b198-0698dd0a7503",
@@ -492,7 +806,9 @@
             }
           ],
           "style": "DASHED",
-          "description": "Waiting for approval"
+          "description": "Waiting for approval",
+          "animated": true,
+          "direction": "FORWARD"
         },
         {
           "id": "conn-test-prod",
@@ -504,15 +820,100 @@
               "id": "anchor-tp-1",
               "ref": {
                 "item": "336bc4d8-eebb-438d-b79b-0882d9e693f8"
-              }
+              },
+              "ordering": 0
+            },
+            {
+              "id": "c7fb6eb4-2139-48e8-9a24-aac34f70590d",
+              "ref": {
+                "tile": {
+                  "x": 0,
+                  "y": -10
+                }
+              },
+              "ordering": 1
             },
             {
               "id": "anchor-tp-2",
               "ref": {
                 "item": "b8cb5167-4a87-4105-acf0-67656a906365"
+              },
+              "ordering": 12
+            }
+          ],
+          "animated": true,
+          "direction": "FORWARD",
+          "width": 10,
+          "path": {
+            "tiles": [
+              {
+                "x": 3,
+                "y": 13
+              },
+              {
+                "x": 2,
+                "y": 12
+              },
+              {
+                "x": 1,
+                "y": 11
+              },
+              {
+                "x": 1,
+                "y": 11
+              },
+              {
+                "x": 2,
+                "y": 10
+              },
+              {
+                "x": 2,
+                "y": 9
+              },
+              {
+                "x": 2,
+                "y": 8
+              },
+              {
+                "x": 2,
+                "y": 7
+              },
+              {
+                "x": 2,
+                "y": 6
+              },
+              {
+                "x": 2,
+                "y": 5
+              },
+              {
+                "x": 2,
+                "y": 4
+              },
+              {
+                "x": 2,
+                "y": 3
+              },
+              {
+                "x": 2,
+                "y": 2
+              },
+              {
+                "x": 2,
+                "y": 1
+              }
+            ],
+            "rectangle": {
+              "from": {
+                "x": 1,
+                "y": 0
+              },
+              "to": {
+                "x": -3,
+                "y": -14
               }
             }
-          ]
+          }
         },
         {
           "id": "conn-reviewer-prod",
@@ -531,7 +932,9 @@
                 "item": "b8cb5167-4a87-4105-acf0-67656a906365"
               }
             }
-          ]
+          ],
+          "animated": true,
+          "direction": "FORWARD"
         },
         {
           "id": "conn-reviewer-test",
@@ -549,8 +952,8 @@
               "id": "12a3a377-aede-4cb8-a0b7-0a85bbfd9d44",
               "ref": {
                 "tile": {
-                  "x": -1,
-                  "y": -12
+                  "x": 1,
+                  "y": -11
                 }
               },
               "ordering": 1
@@ -576,7 +979,11 @@
                 "y": 2
               },
               {
-                "x": 2,
+                "x": 3,
+                "y": 2
+              },
+              {
+                "x": 3,
                 "y": 2
               },
               {
@@ -586,15 +993,17 @@
             ],
             "rectangle": {
               "from": {
-                "x": 1,
-                "y": -9
+                "x": 3,
+                "y": -10
               },
               "to": {
-                "x": -3,
-                "y": -12
+                "x": -1,
+                "y": -13
               }
             }
-          }
+          },
+          "animated": true,
+          "direction": "FORWARD"
         }
       ],
       "rectangles": [
@@ -603,12 +1012,14 @@
           "color": "color1",
           "from": {
             "x": -7,
-            "y": 5
+            "y": 6
           },
           "to": {
             "x": 6,
-            "y": -16
-          }
+            "y": -15
+          },
+          "zone": "vpc",
+          "name": "VPC interna (AWS)"
         },
         {
           "id": "67c435d4-2bc2-4f4e-9c0f-270dfadeede6",
@@ -620,7 +1031,9 @@
           "to": {
             "x": -11,
             "y": -8
-          }
+          },
+          "zone": "account",
+          "name": "GitHub (SaaS)"
         },
         {
           "id": "45c83caf-9b55-4c24-a845-9b67da71dd7d",
@@ -632,19 +1045,24 @@
           "to": {
             "x": -24,
             "y": -5
-          }
+          },
+          "zone": "onPrem",
+          "name": "LOCAL"
         },
         {
           "id": "rect-ec2-db",
           "color": "color5",
           "from": {
-            "x": -6,
-            "y": -12
+            "x": -5,
+            "y": -9
           },
           "to": {
-            "x": -1,
-            "y": -15
-          }
+            "x": 1,
+            "y": -13
+          },
+          "zone": "subnet",
+          "name": "Subnet privada - datos",
+          "visibility": "private"
         }
       ],
       "textBoxes": [
@@ -662,7 +1080,7 @@
           "id": "txt-github",
           "tile": {
             "x": -18,
-            "y": 1
+            "y": 2
           },
           "content": "GITHUB (nube publica)",
           "fontSize": 0.7,
@@ -681,8 +1099,8 @@
         {
           "id": "txt-approval",
           "tile": {
-            "x": -1,
-            "y": -5
+            "x": 0,
+            "y": -2
           },
           "content": "Waiting for approval",
           "fontSize": 0.6,
@@ -692,17 +1110,17 @@
           "id": "txt-no-db",
           "tile": {
             "x": -11,
-            "y": -3
+            "y": 0
           },
           "content": "Ninguna base real",
-          "fontSize": 0.5,
-          "orientation": "X"
+          "fontSize": 0.6,
+          "orientation": "Y"
         },
         {
           "id": "txt-approval-test",
           "tile": {
-            "x": -4,
-            "y": -15
+            "x": -1,
+            "y": -13
           },
           "content": "Waiting for approval",
           "fontSize": 0.6,
@@ -711,15 +1129,201 @@
         {
           "id": "txt-ec2",
           "tile": {
-            "x": -6,
-            "y": -11
+            "x": 0,
+            "y": -7
           },
           "content": "EC2 unica - dev + test",
           "fontSize": 0.6,
           "orientation": "X"
         }
       ],
-      "lastUpdated": "2026-09-21T00:05:32.553Z"
+      "lastUpdated": "2026-09-22T19:41:34.316Z"
+    }
+  ],
+  "flows": [
+    {
+      "id": "flow-pr-validation",
+      "name": "1. Validacion del PR",
+      "description": "El cambio viaja desde la PC hasta la base descartable del check y el resultado vuelve al Pull Request.",
+      "steps": [
+        {
+          "id": "step-1",
+          "connectorId": "abc7bcca-a83c-4087-ae11-7cd7180e7ea6",
+          "direction": "REQUEST",
+          "label": "Edita el procedure"
+        },
+        {
+          "id": "step-2",
+          "connectorId": "00bf9c45-eb50-4414-91b3-a4130af9f3a0",
+          "direction": "REQUEST",
+          "label": "git commit"
+        },
+        {
+          "id": "step-3",
+          "connectorId": "b07b929b-4c94-4d8e-8794-9c0aaf24f441",
+          "direction": "REQUEST",
+          "label": "git push rama feature"
+        },
+        {
+          "id": "step-4",
+          "connectorId": "0451f940-78b0-4a09-94ee-9bba8991d849",
+          "direction": "REQUEST",
+          "label": "Dispara pr-check.yml"
+        },
+        {
+          "id": "step-5",
+          "connectorId": "7d19fd17-58c7-46eb-ae58-3c4fdd0c32b2",
+          "direction": "REQUEST",
+          "label": "flyway migrate + tests",
+          "durationMs": 1600
+        },
+        {
+          "id": "step-6",
+          "connectorId": "7d19fd17-58c7-46eb-ae58-3c4fdd0c32b2",
+          "direction": "RESPONSE",
+          "label": "Migracion OK"
+        },
+        {
+          "id": "step-7",
+          "connectorId": "0451f940-78b0-4a09-94ee-9bba8991d849",
+          "direction": "RESPONSE",
+          "label": "Check verde"
+        },
+        {
+          "id": "step-8",
+          "connectorId": "b07b929b-4c94-4d8e-8794-9c0aaf24f441",
+          "direction": "RESPONSE",
+          "label": "PR listo para merge"
+        },
+        {
+          "id": "0f7bb689-f8c6-4f64-be3a-0a9fd68251d4",
+          "connectorId": "7d19fd17-58c7-46eb-ae58-3c4fdd0c32b2",
+          "direction": "RESPONSE",
+          "label": "flyway migrate + tests",
+          "durationMs": 1600
+        },
+        {
+          "id": "c363bcbd-16fb-40ea-bc18-2f7e72cf021b",
+          "connectorId": "0451f940-78b0-4a09-94ee-9bba8991d849",
+          "direction": "RESPONSE",
+          "label": "Dispara pr-check.yml"
+        },
+        {
+          "id": "c07ff5dd-2b15-46e2-bb96-8193ef107df3",
+          "connectorId": "b07b929b-4c94-4d8e-8794-9c0aaf24f441",
+          "direction": "RESPONSE",
+          "label": "git push rama feature"
+        },
+        {
+          "id": "48a88df6-0c7a-4e91-8a0b-d957183ecd46",
+          "connectorId": "00bf9c45-eb50-4414-91b3-a4130af9f3a0",
+          "direction": "RESPONSE",
+          "label": "git commit"
+        },
+        {
+          "id": "5d14440b-a409-4a1a-8cce-430239e9771d",
+          "connectorId": "abc7bcca-a83c-4087-ae11-7cd7180e7ea6",
+          "direction": "RESPONSE",
+          "label": "Edita el procedure"
+        }
+      ]
+    },
+    {
+      "id": "flow-deploy",
+      "name": "2. Deploy dev -> test -> produccion",
+      "description": "Merge a main, el workflow entra a la VPC por el runner self-hosted y promueve con aprobacion.",
+      "steps": [
+        {
+          "id": "step-9",
+          "connectorId": "b2b8f625-584e-4a44-b8c2-65c4e9caac70",
+          "direction": "REQUEST",
+          "label": "Merge a main"
+        },
+        {
+          "id": "step-10",
+          "connectorId": "conn-cross-vpc",
+          "direction": "REQUEST",
+          "label": "Dispara flyway-migrate.yml"
+        },
+        {
+          "id": "018ebd53-be9d-44bd-926b-dd29cb5b0db1",
+          "connectorId": "c9a59d19-bf5a-44f8-b93e-8e83db365536",
+          "direction": "REQUEST",
+          "label": "accionar runner",
+          "durationMs": 2
+        },
+        {
+          "id": "step-12",
+          "connectorId": "conn-runner-flyway",
+          "direction": "REQUEST",
+          "label": "Invoca Flyway CLI"
+        },
+        {
+          "id": "step-13",
+          "connectorId": "1cc01db6-ddfe-4c40-9116-be67b216a3ea",
+          "direction": "REQUEST",
+          "label": "migrate dev",
+          "durationMs": 1600
+        },
+        {
+          "id": "step-15",
+          "connectorId": "conn-reviewer-test",
+          "direction": "REQUEST",
+          "label": "Aprueba testing",
+          "durationMs": 1800
+        },
+        {
+          "id": "step-14",
+          "connectorId": "1cc01db6-ddfe-4c40-9116-be67b216a3ea",
+          "direction": "RESPONSE",
+          "label": "dev OK"
+        },
+        {
+          "id": "step-16",
+          "connectorId": "4b96f0fc-1720-4bc6-b198-0698dd0a7503",
+          "direction": "REQUEST",
+          "label": "Promueve a testing",
+          "durationMs": 1600
+        },
+        {
+          "id": "step-17",
+          "connectorId": "conn-reviewer-prod",
+          "direction": "REQUEST",
+          "label": "Aprueba produccion",
+          "durationMs": 1800
+        },
+        {
+          "id": "step-18",
+          "connectorId": "conn-test-prod",
+          "direction": "REQUEST",
+          "label": "Promueve a produccion",
+          "durationMs": 1600
+        },
+        {
+          "id": "step-19",
+          "connectorId": "conn-test-prod",
+          "direction": "RESPONSE",
+          "label": "Produccion OK"
+        },
+        {
+          "id": "step-20",
+          "connectorId": "4b96f0fc-1720-4bc6-b198-0698dd0a7503",
+          "direction": "RESPONSE",
+          "label": "Estado"
+        },
+        {
+          "id": "step-21",
+          "connectorId": "1cc01db6-ddfe-4c40-9116-be67b216a3ea",
+          "direction": "RESPONSE",
+          "label": "Estado"
+        },
+        {
+          "id": "step-23",
+          "connectorId": "conn-cross-vpc",
+          "direction": "RESPONSE",
+          "label": "Deploy completo"
+        }
+      ]
     }
   ],
   "icons": []

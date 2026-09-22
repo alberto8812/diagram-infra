@@ -24,3 +24,9 @@ yarn-error.log*
 
 # Atomic-write temp files from the dev diagram endpoint
 diagrams/*.tmp
+
+# Client diagrams kept out of this public repository
+diagrams/safi-client.json
+
+# Local Pi runtime state
+.atl/
