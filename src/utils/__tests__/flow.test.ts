@@ -294,4 +294,100 @@ describe('getMissingReturnPathSteps() works correctly', () => {
       { id: 'generated-1', connectorId: 'conn2', direction: 'RESPONSE' }
     ]);
   });
+
+  test('does not duplicate a hop whose response label was edited by the user', () => {
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST', label: 'Edita' },
+      { id: 's2', connectorId: 'conn2', direction: 'REQUEST', label: 'Push' },
+      {
+        id: 's3',
+        connectorId: 'conn3',
+        direction: 'REQUEST',
+        label: 'Migra'
+      },
+      {
+        id: 's4',
+        connectorId: 'conn3',
+        direction: 'RESPONSE',
+        label: 'Migracion OK'
+      }
+    ];
+
+    const result = getMissingReturnPathSteps(steps, makeCounter());
+
+    expect(
+      result.map((step) => {
+        return step.connectorId;
+      })
+    ).toStrictEqual(['conn2', 'conn1']);
+    expect(result).toStrictEqual([
+      {
+        id: 'generated-1',
+        connectorId: 'conn2',
+        direction: 'RESPONSE',
+        label: 'Push'
+      },
+      {
+        id: 'generated-2',
+        connectorId: 'conn1',
+        direction: 'RESPONSE',
+        label: 'Edita'
+      }
+    ]);
+  });
+
+  test('stays idempotent when every mirrored response label was edited by the user', () => {
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST', label: 'Edita' },
+      { id: 's2', connectorId: 'conn2', direction: 'REQUEST', label: 'Push' },
+      {
+        id: 's3',
+        connectorId: 'conn2',
+        direction: 'RESPONSE',
+        label: 'Push aceptado'
+      },
+      {
+        id: 's4',
+        connectorId: 'conn1',
+        direction: 'RESPONSE',
+        label: 'Edicion guardada'
+      }
+    ];
+
+    expect(getMissingReturnPathSteps(steps, makeCounter())).toStrictEqual([]);
+  });
+
+  test('fills in only the missing tail hops of a partial, edited return path', () => {
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST', label: 'Edita' },
+      { id: 's2', connectorId: 'conn2', direction: 'REQUEST', label: 'Push' },
+      {
+        id: 's3',
+        connectorId: 'conn3',
+        direction: 'REQUEST',
+        label: 'Migra'
+      },
+      {
+        id: 's4',
+        connectorId: 'conn3',
+        direction: 'RESPONSE',
+        label: 'Migracion OK'
+      },
+      {
+        id: 's5',
+        connectorId: 'conn2',
+        direction: 'RESPONSE',
+        label: 'Push aceptado'
+      }
+    ];
+
+    expect(getMissingReturnPathSteps(steps, makeCounter())).toStrictEqual([
+      {
+        id: 'generated-1',
+        connectorId: 'conn1',
+        direction: 'RESPONSE',
+        label: 'Edita'
+      }
+    ]);
+  });
 });
