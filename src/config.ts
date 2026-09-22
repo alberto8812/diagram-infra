@@ -8,7 +8,9 @@ import {
   ViewItem,
   View,
   Rectangle,
-  Colors
+  Colors,
+  FlowPlayback,
+  IconStyle
 } from 'src/types';
 import { CoordsUtils } from 'src/utils';
 import { customVars } from './styles/theme';
@@ -49,7 +51,9 @@ export const CONNECTOR_DEFAULTS: Required<Omit<Connector, 'id' | 'color'>> = {
   width: 10,
   description: '',
   anchors: [],
-  style: 'SOLID'
+  style: 'SOLID',
+  animated: false,
+  direction: 'FORWARD'
 };
 
 // The boundaries of the search area for the pathfinder algorithm
@@ -83,12 +87,28 @@ export const INITIAL_DATA: InitialData = {
   views: [],
   fitToView: false
 };
+// Default duration for a flow step's packet animation when the step itself
+// does not set one. Effective duration = durationMs / playback speed.
+export const DEFAULT_FLOW_STEP_DURATION_MS = 1200;
+
+export const INITIAL_FLOW_PLAYBACK: FlowPlayback = {
+  flowId: null,
+  status: 'IDLE',
+  stepIndex: 0,
+  speed: 1
+};
+
+// Speed multipliers offered by the playback controls (FlowPlaybackBar).
+export const FLOW_PLAYBACK_SPEED_OPTIONS = [0.5, 1, 2] as const;
+
 export const INITIAL_UI_STATE = {
   zoom: 1,
   scroll: {
     position: CoordsUtils.zero(),
     offset: CoordsUtils.zero()
-  }
+  },
+  flowPlayback: INITIAL_FLOW_PLAYBACK,
+  activeNodePulse: null
 };
 export const INITIAL_SCENE_STATE = {
   connectors: {},
@@ -114,3 +134,12 @@ export const DEFAULT_ICON: Icon = {
 export const DEFAULT_LABEL_HEIGHT = 20;
 export const PROJECT_BOUNDING_BOX_PADDING = 3;
 export const MARKDOWN_EMPTY_VALUE = '<p><br></p>';
+
+// T6: non-isometric (flat) icons render on an extruded isometric block by
+// default (opt-out via a model item's own `iconStyle`, see
+// src/schemas/modelItems.ts). Isometric icons are unaffected.
+export const NODE_ICON_STYLE_DEFAULT: IconStyle = 'BLOCK';
+export const ICON_BLOCK_EXTRUDE_HEIGHT = Math.round(
+  PROJECTED_TILE_SIZE.height * 0.35
+);
+export const ICON_BLOCK_BASE_COLOR = '#e7ecf5';

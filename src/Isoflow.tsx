@@ -9,6 +9,7 @@ import { SceneProvider } from 'src/stores/sceneStore';
 import { GlobalStyles } from 'src/styles/GlobalStyles';
 import { Renderer } from 'src/components/Renderer/Renderer';
 import { UiOverlay } from 'src/components/UiOverlay/UiOverlay';
+import { FlowPlaybackReconciler } from 'src/components/FlowPlaybackReconciler/FlowPlaybackReconciler';
 import { UiStateProvider, useUiStateStore } from 'src/stores/uiStateStore';
 import { INITIAL_DATA, MAIN_MENU_OPTIONS } from 'src/config';
 import { useInitialDataManager } from 'src/hooks/useInitialDataManager';
@@ -63,6 +64,7 @@ const App = ({
   return (
     <>
       <GlobalStyles />
+      <FlowPlaybackReconciler />
       <Box
         sx={{
           width,

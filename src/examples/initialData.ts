@@ -107,10 +107,37 @@ const cicdIcons: Icons = [
 
 export const icons: Icons = [...isopacks, ...cicdIcons];
 
+// Sample flow for the playback controls/flow editor (T5): a landside
+// check-in request reaching the central database, and its response
+// travelling back over the same connector.
+const sampleFlows: InitialData['flows'] = [
+  {
+    id: 'flow-landside-aodb-checkin',
+    name: 'Landside check-in',
+    description:
+      'A landside operations request reaching the central database (AODB), and the response returning.',
+    steps: [
+      {
+        id: 'flow-step-checkin-request',
+        connectorId: '2e025225-169c-4609-bf93-a4a7aa602b00',
+        direction: 'REQUEST',
+        label: 'Request'
+      },
+      {
+        id: 'flow-step-checkin-response',
+        connectorId: '2e025225-169c-4609-bf93-a4a7aa602b00',
+        direction: 'RESPONSE',
+        label: 'Response'
+      }
+    ]
+  }
+];
+
 export const initialData: InitialData = {
   title: 'Airport management software system',
   icons,
   colors,
+  flows: sampleFlows,
   items: [
     {
       id: 'item1',

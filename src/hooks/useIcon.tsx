@@ -3,9 +3,14 @@ import { useModelStore } from 'src/stores/modelStore';
 import { getItemByIdOrThrow } from 'src/utils';
 import { IsometricIcon } from 'src/components/SceneLayers/Nodes/Node/IconTypes/IsometricIcon';
 import { NonIsometricIcon } from 'src/components/SceneLayers/Nodes/Node/IconTypes/NonIsometricIcon';
-import { DEFAULT_ICON } from 'src/config';
+import { IsometricBlockIcon } from 'src/components/SceneLayers/Nodes/Node/IconTypes/IsometricBlockIcon';
+import { DEFAULT_ICON, NODE_ICON_STYLE_DEFAULT } from 'src/config';
+import { IconStyle } from 'src/types';
 
-export const useIcon = (id: string | undefined) => {
+// `iconStyle` is the owning model item's own T6 override (optional, falls
+// back to NODE_ICON_STYLE_DEFAULT) — see src/schemas/modelItems.ts. It only
+// affects non-isometric icons; isometric ones always render as-is.
+export const useIcon = (id: string | undefined, iconStyle?: IconStyle) => {
   const [hasLoaded, setHasLoaded] = React.useState(false);
   const icons = useModelStore((state) => {
     return state.icons;
@@ -24,6 +29,13 @@ export const useIcon = (id: string | undefined) => {
   const iconComponent = useMemo(() => {
     if (!icon.isIsometric) {
       setHasLoaded(true);
+
+      const effectiveStyle = iconStyle ?? NODE_ICON_STYLE_DEFAULT;
+
+      if (effectiveStyle === 'BLOCK') {
+        return <IsometricBlockIcon icon={icon} />;
+      }
+
       return <NonIsometricIcon icon={icon} />;
     }
 
@@ -35,7 +47,7 @@ export const useIcon = (id: string | undefined) => {
         }}
       />
     );
-  }, [icon]);
+  }, [icon, iconStyle]);
 
   return {
     icon,

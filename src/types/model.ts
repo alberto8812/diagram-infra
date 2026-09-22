@@ -13,11 +13,20 @@ import {
   anchorSchema,
   textBoxSchema,
   rectangleSchema,
-  connectorStyleOptions
+  connectorStyleOptions,
+  connectorDirectionOptions,
+  flowSchema,
+  flowStepSchema,
+  flowsSchema,
+  flowStepDirectionOptions,
+  iconStyleOptions
 } from 'src/schemas';
 import { StoreApi } from 'zustand';
 
 export { connectorStyleOptions } from 'src/schemas';
+export { connectorDirectionOptions } from 'src/schemas';
+export { flowStepDirectionOptions } from 'src/schemas';
+export { iconStyleOptions } from 'src/schemas';
 export type Model = z.infer<typeof modelSchema>;
 export type ModelItems = z.infer<typeof modelItemsSchema>;
 export type Icon = z.infer<typeof iconSchema>;
@@ -28,10 +37,16 @@ export type Views = z.infer<typeof viewsSchema>;
 export type View = z.infer<typeof viewSchema>;
 export type ViewItem = z.infer<typeof viewItemSchema>;
 export type ConnectorStyle = keyof typeof connectorStyleOptions;
+export type ConnectorDirection = keyof typeof connectorDirectionOptions;
 export type ConnectorAnchor = z.infer<typeof anchorSchema>;
 export type Connector = z.infer<typeof connectorSchema>;
 export type TextBox = z.infer<typeof textBoxSchema>;
 export type Rectangle = z.infer<typeof rectangleSchema>;
+export type FlowStep = z.infer<typeof flowStepSchema>;
+export type Flow = z.infer<typeof flowSchema>;
+export type Flows = z.infer<typeof flowsSchema>;
+export type FlowStepDirection = (typeof flowStepDirectionOptions)[number];
+export type IconStyle = (typeof iconStyleOptions)[number];
 
 export type ModelStore = Model & {
   actions: {

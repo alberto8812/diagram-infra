@@ -1,6 +1,18 @@
 import React from 'react';
-import { Connector, connectorStyleOptions } from 'src/types';
-import { Box, Slider, Select, MenuItem, TextField } from '@mui/material';
+import {
+  Connector,
+  connectorStyleOptions,
+  connectorDirectionOptions
+} from 'src/types';
+import {
+  Box,
+  Slider,
+  Select,
+  MenuItem,
+  TextField,
+  FormControlLabel,
+  Switch
+} from '@mui/material';
 import { useConnector } from 'src/hooks/useConnector';
 import { ColorSelector } from 'src/components/ColorSelector/ColorSelector';
 import { useUiStateStore } from 'src/stores/uiStateStore';
@@ -12,6 +24,12 @@ import { DeleteButton } from '../components/DeleteButton';
 interface Props {
   id: string;
 }
+
+const DIRECTION_LABELS: Record<Connector['direction'] & string, string> = {
+  FORWARD: 'Forward',
+  REVERSE: 'Reverse',
+  BOTH: 'Both'
+};
 
 export const ConnectorControls = ({ id }: Props) => {
   const uiStateActions = useUiStateStore((state) => {
@@ -64,6 +82,38 @@ export const ConnectorControls = ({ id }: Props) => {
         >
           {Object.values(connectorStyleOptions).map((style) => {
             return <MenuItem value={style}>{style}</MenuItem>;
+          })}
+        </Select>
+      </Section>
+      <Section title="Flow">
+        <FormControlLabel
+          label="Animated flow"
+          control={
+            <Switch
+              checked={connector.animated ?? false}
+              onChange={(e) => {
+                updateConnector(connector.id, {
+                  animated: e.target.checked
+                });
+              }}
+            />
+          }
+        />
+        <Select
+          value={connector.direction ?? 'FORWARD'}
+          disabled={!connector.animated}
+          onChange={(e) => {
+            updateConnector(connector.id, {
+              direction: e.target.value as Connector['direction']
+            });
+          }}
+        >
+          {Object.values(connectorDirectionOptions).map((direction) => {
+            return (
+              <MenuItem key={direction} value={direction}>
+                {DIRECTION_LABELS[direction]}
+              </MenuItem>
+            );
           })}
         </Select>
       </Section>

@@ -6,7 +6,9 @@ import {
   TextBox,
   Rectangle,
   ItemReference,
-  LayerOrderingAction
+  LayerOrderingAction,
+  Flow,
+  FlowStep
 } from 'src/types';
 import { useUiStateStore } from 'src/stores/uiStateStore';
 import { useModelStore } from 'src/stores/modelStore';
@@ -261,6 +263,72 @@ export const useScene = () => {
     [getState, setState, currentViewId]
   );
 
+  const createFlow = useCallback(
+    (newFlow: Flow) => {
+      const newState = reducers.createFlow(newFlow, getState());
+      setState(newState);
+    },
+    [getState, setState]
+  );
+
+  const updateFlow = useCallback(
+    (id: string, updates: Partial<Omit<Flow, 'id' | 'steps'>>) => {
+      const newState = reducers.updateFlow(id, updates, getState());
+      setState(newState);
+    },
+    [getState, setState]
+  );
+
+  const deleteFlow = useCallback(
+    (id: string) => {
+      const newState = reducers.deleteFlow(id, getState());
+      setState(newState);
+    },
+    [getState, setState]
+  );
+
+  const createFlowStep = useCallback(
+    (flowId: string, step: FlowStep) => {
+      const newState = reducers.createFlowStep({ flowId, step }, getState());
+      setState(newState);
+    },
+    [getState, setState]
+  );
+
+  const updateFlowStep = useCallback(
+    (
+      flowId: string,
+      stepId: string,
+      updates: Partial<Omit<FlowStep, 'id'>>
+    ) => {
+      const newState = reducers.updateFlowStep(
+        { flowId, stepId, updates },
+        getState()
+      );
+      setState(newState);
+    },
+    [getState, setState]
+  );
+
+  const deleteFlowStep = useCallback(
+    (flowId: string, stepId: string) => {
+      const newState = reducers.deleteFlowStep({ flowId, stepId }, getState());
+      setState(newState);
+    },
+    [getState, setState]
+  );
+
+  const reorderFlowSteps = useCallback(
+    (flowId: string, stepId: string, toIndex: number) => {
+      const newState = reducers.reorderFlowSteps(
+        { flowId, stepId, toIndex },
+        getState()
+      );
+      setState(newState);
+    },
+    [getState, setState]
+  );
+
   const changeLayerOrder = useCallback(
     (action: LayerOrderingAction, item: ItemReference) => {
       const newState = reducers.view({
@@ -295,6 +363,13 @@ export const useScene = () => {
     createRectangle,
     updateRectangle,
     deleteRectangle,
-    changeLayerOrder
+    changeLayerOrder,
+    createFlow,
+    updateFlow,
+    deleteFlow,
+    createFlowStep,
+    updateFlowStep,
+    deleteFlowStep,
+    reorderFlowSteps
   };
 };

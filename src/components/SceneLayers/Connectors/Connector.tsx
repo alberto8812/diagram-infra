@@ -1,10 +1,14 @@
 import React, { useMemo } from 'react';
 import { useTheme, Box } from '@mui/material';
+import { keyframes } from '@emotion/react';
 import { UNPROJECTED_TILE_SIZE } from 'src/config';
 import {
   getAnchorTile,
   getColorVariant,
-  getConnectorDirectionIcon
+  getConnectorDirectionIcon,
+  getPacketPathPoints,
+  getPacketDestinationItemId,
+  getStepDurationMs
 } from 'src/utils';
 import { Circle } from 'src/components/Circle/Circle';
 import { Svg } from 'src/components/Svg/Svg';
@@ -12,6 +16,9 @@ import { useIsoProjection } from 'src/hooks/useIsoProjection';
 import { useConnector } from 'src/hooks/useConnector';
 import { useScene } from 'src/hooks/useScene';
 import { useColor } from 'src/hooks/useColor';
+import { useFlowPlayback } from 'src/hooks/useFlowPlayback';
+import { useReducedMotion } from 'src/hooks/useReducedMotion';
+import { ConnectorPacket } from './ConnectorPacket';
 
 interface Props {
   connector: ReturnType<typeof useScene>['connectors'][0];
@@ -88,6 +95,135 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
     }
   }, [connector.style, connectorWidthPx]);
 
+  // Flow direction follows the order of connector.path.tiles (start -> end).
+  // A negative stroke-dashoffset animates the dash pattern in that same
+  // direction; a positive one animates it in reverse.
+  const flow = useMemo(() => {
+    const dashLength = connectorWidthPx * 1.2;
+    const gapLength = connectorWidthPx * 2.4;
+    const period = dashLength + gapLength;
+
+    return {
+      dashArray: `${dashLength}, ${gapLength}`,
+      forward: keyframes`
+        from { stroke-dashoffset: 0; }
+        to { stroke-dashoffset: ${-period}; }
+      `,
+      reverse: keyframes`
+        from { stroke-dashoffset: 0; }
+        to { stroke-dashoffset: ${period}; }
+      `
+    };
+  }, [connectorWidthPx]);
+
+  const flowOverlays = useMemo(() => {
+    if (!connector.animated) return [];
+
+    if (connector.direction === 'REVERSE') return ['REVERSE' as const];
+    if (connector.direction === 'BOTH') {
+      return ['FORWARD' as const, 'REVERSE' as const];
+    }
+
+    return ['FORWARD' as const];
+  }, [connector.animated, connector.direction]);
+
+  const {
+    flowPlayback,
+    currentStep,
+    currentConnector,
+    advance,
+    setActiveNodePulse
+  } = useFlowPlayback();
+  const reducedMotion = useReducedMotion();
+
+  // A text key for `connector.path.tiles` (rather than the array itself) so
+  // `packetPoints` below only recomputes when the path's actual x/y values
+  // change. `connector` (from `useConnector`) gets a brand-new object/array
+  // reference on *every* model change, even ones unrelated to this
+  // connector, so keying off the array reference would recreate `points` -
+  // and, via ConnectorPacket's tween-creation effect - restart the running
+  // tween on unrelated edits too.
+  const tilesKey = useMemo(() => {
+    return connector.path.tiles
+      .map((tile) => {
+        return `${tile.x},${tile.y}`;
+      })
+      .join('|');
+  }, [connector.path.tiles]);
+
+  // Stable across playback status/speed changes and unrelated model edits -
+  // this is what lets ConnectorPacket's tween survive PAUSE/PLAY and speed
+  // changes instead of restarting (see the finding this fixes:
+  // R3-pause-restarts-packet-tween). Only tiles/direction/offset (the
+  // connector's own geometry) can change its identity.
+  const packetPoints = useMemo(() => {
+    if (
+      !currentStep ||
+      !currentConnector ||
+      currentConnector.id !== connector.id
+    ) {
+      return null;
+    }
+
+    const tiles = getPacketPathPoints(
+      connector.path.tiles,
+      currentStep.direction
+    );
+
+    return tiles.map((tile) => {
+      return {
+        x: tile.x * UNPROJECTED_TILE_SIZE + drawOffset.x,
+        y: tile.y * UNPROJECTED_TILE_SIZE + drawOffset.y
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    tilesKey,
+    currentStep?.id,
+    currentStep?.direction,
+    currentConnector?.id,
+    connector.id,
+    drawOffset
+  ]);
+
+  const isPlaybackActive = flowPlayback.status !== 'IDLE';
+
+  const packet = useMemo(() => {
+    if (!isPlaybackActive || !packetPoints || !currentStep) return null;
+
+    const packetColor =
+      currentStep.direction === 'RESPONSE'
+        ? theme.palette.secondary.main
+        : theme.palette.primary.main;
+
+    const destinationItemId = getPacketDestinationItemId(
+      connector.anchors,
+      currentStep.direction
+    );
+
+    return {
+      stepId: currentStep.id,
+      points: packetPoints,
+      color: packetColor,
+      label: currentStep.label,
+      // The step's own duration at speed 1x - ConnectorPacket applies the
+      // current speed to the running tween via `timeScale()` instead of
+      // rebuilding it, so a speed change mid-flight doesn't restart the
+      // tween either.
+      baseDurationMs: getStepDurationMs(currentStep, 1),
+      speed: flowPlayback.speed,
+      destinationItemId
+    };
+  }, [
+    isPlaybackActive,
+    packetPoints,
+    currentStep,
+    connector.anchors,
+    theme.palette.primary.main,
+    theme.palette.secondary.main,
+    flowPlayback.speed
+  ]);
+
   return (
     <Box style={css}>
       <Svg
@@ -118,6 +254,37 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
           strokeDasharray={strokeDashArray}
           fill="none"
         />
+
+        {flowOverlays.map((direction) => {
+          const isReverse = direction === 'REVERSE';
+          // When both directions are shown, the reverse overlay is the
+          // second one: dim it and phase-shift it so both streams read.
+          const isSecondary = flowOverlays.length > 1 && isReverse;
+
+          return (
+            <Box
+              key={direction}
+              component="polyline"
+              points={pathString}
+              stroke={theme.palette.common.white}
+              strokeOpacity={isSecondary ? 0.35 : 0.85}
+              strokeWidth={connectorWidthPx}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={flow.dashArray}
+              fill="none"
+              sx={{
+                animation: `${
+                  isReverse ? flow.reverse : flow.forward
+                } 1.4s linear infinite`,
+                animationDelay: isSecondary ? '-0.7s' : '0s',
+                '@media (prefers-reduced-motion: reduce)': {
+                  animation: 'none'
+                }
+              }}
+            />
+          );
+        })}
 
         {anchorPositions.map((anchor) => {
           return (
@@ -150,6 +317,29 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
               />
             </g>
           </g>
+        )}
+
+        {packet && (
+          <ConnectorPacket
+            key={packet.stepId}
+            points={packet.points}
+            color={packet.color}
+            label={packet.label}
+            baseDurationMs={packet.baseDurationMs}
+            speed={packet.speed}
+            status={flowPlayback.status === 'PAUSED' ? 'PAUSED' : 'PLAYING'}
+            reducedMotion={reducedMotion}
+            onArrive={() => {
+              if (packet.destinationItemId) {
+                setActiveNodePulse({
+                  nodeId: packet.destinationItemId,
+                  token: Date.now()
+                });
+              }
+
+              advance();
+            }}
+          />
         )}
       </Svg>
     </Box>

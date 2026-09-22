@@ -4,7 +4,8 @@ import type {
   Connector,
   ConnectorAnchor,
   View,
-  Rectangle
+  Rectangle,
+  Flow
 } from 'src/types';
 import { getAllAnchors, getItemByIdOrThrow } from 'src/utils';
 
@@ -70,6 +71,14 @@ type IssueType =
       params: {
         connector: string;
         view: string;
+      };
+    }
+  | {
+      type: 'INVALID_FLOW_STEP_CONNECTOR_REF';
+      params: {
+        flow: string;
+        step: string;
+        connectorId: string;
       };
     };
 
@@ -297,6 +306,33 @@ export const validateModelItem = (
   return issues;
 };
 
+export const validateFlow = (flow: Flow, ctx: { model: Model }): Issue[] => {
+  const issues: Issue[] = [];
+
+  flow.steps.forEach((step) => {
+    const connectorExists = ctx.model.views.some((view) => {
+      return (view.connectors ?? []).some((connector) => {
+        return connector.id === step.connectorId;
+      });
+    });
+
+    if (!connectorExists) {
+      issues.push({
+        type: 'INVALID_FLOW_STEP_CONNECTOR_REF',
+        params: {
+          flow: flow.id,
+          step: step.id,
+          connectorId: step.connectorId
+        },
+        message:
+          'Flow step references a connector that does not exist in any view.'
+      });
+    }
+  });
+
+  return issues;
+};
+
 export const validateModel = (model: Model): Issue[] => {
   const issues: Issue[] = [];
 
@@ -306,6 +342,10 @@ export const validateModel = (model: Model): Issue[] => {
 
   model.views.forEach((view) => {
     issues.push(...validateView(view, { model }));
+  });
+
+  (model.flows ?? []).forEach((flow) => {
+    issues.push(...validateFlow(flow, { model }));
   });
 
   return issues;

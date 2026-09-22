@@ -4,7 +4,8 @@ import {
   CoordsUtils,
   incrementZoom,
   decrementZoom,
-  getStartingMode
+  getStartingMode,
+  flowPlaybackReducer
 } from 'src/utils';
 import { UiStateStore } from 'src/types';
 import { INITIAL_UI_STATE } from 'src/config';
@@ -14,6 +15,8 @@ const initialState = () => {
     return {
       zoom: INITIAL_UI_STATE.zoom,
       scroll: INITIAL_UI_STATE.scroll,
+      flowPlayback: INITIAL_UI_STATE.flowPlayback,
+      activeNodePulse: INITIAL_UI_STATE.activeNodePulse,
       view: '',
       mainMenuOptions: [],
       editorMode: 'EXPLORABLE_READONLY',
@@ -51,7 +54,9 @@ const initialState = () => {
               offset: CoordsUtils.zero()
             },
             itemControls: null,
-            zoom: 1
+            zoom: 1,
+            flowPlayback: INITIAL_UI_STATE.flowPlayback,
+            activeNodePulse: INITIAL_UI_STATE.activeNodePulse
           });
         },
         setMode: (mode) => {
@@ -91,6 +96,84 @@ const initialState = () => {
         },
         setRendererEl: (el) => {
           set({ rendererEl: el });
+        },
+        selectFlow: (flowId) => {
+          set({
+            flowPlayback: flowPlaybackReducer(get().flowPlayback, {
+              type: 'SELECT_FLOW',
+              flowId
+            })
+          });
+        },
+        play: (stepsLength) => {
+          set({
+            flowPlayback: flowPlaybackReducer(
+              get().flowPlayback,
+              { type: 'PLAY' },
+              stepsLength
+            )
+          });
+        },
+        pause: () => {
+          set({
+            flowPlayback: flowPlaybackReducer(get().flowPlayback, {
+              type: 'PAUSE'
+            })
+          });
+        },
+        stop: () => {
+          set({
+            flowPlayback: flowPlaybackReducer(get().flowPlayback, {
+              type: 'STOP'
+            })
+          });
+        },
+        nextStep: (stepsLength) => {
+          set({
+            flowPlayback: flowPlaybackReducer(
+              get().flowPlayback,
+              { type: 'NEXT_STEP' },
+              stepsLength
+            )
+          });
+        },
+        prevStep: (stepsLength) => {
+          set({
+            flowPlayback: flowPlaybackReducer(
+              get().flowPlayback,
+              { type: 'PREV_STEP' },
+              stepsLength
+            )
+          });
+        },
+        setSpeed: (speed) => {
+          set({
+            flowPlayback: flowPlaybackReducer(get().flowPlayback, {
+              type: 'SET_SPEED',
+              speed
+            })
+          });
+        },
+        advance: (stepsLength) => {
+          set({
+            flowPlayback: flowPlaybackReducer(
+              get().flowPlayback,
+              { type: 'ADVANCE' },
+              stepsLength
+            )
+          });
+        },
+        reconcile: (stepsCount, flowExists, connectorExists) => {
+          set({
+            flowPlayback: flowPlaybackReducer(
+              get().flowPlayback,
+              { type: 'RECONCILE', flowExists, connectorExists },
+              stepsCount
+            )
+          });
+        },
+        setActiveNodePulse: (activeNodePulse) => {
+          set({ activeNodePulse });
         }
       }
     };
