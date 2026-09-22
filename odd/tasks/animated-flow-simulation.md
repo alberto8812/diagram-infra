@@ -715,8 +715,16 @@ with the canvas background?
   background instead?
 
 ## Next step
-User validation in browser (`npm start`), then merge decision. Review 3's
-fixes (speed-on-rebuild, idempotent return path, cross-view connector
-labels) are done and verified; the two remaining follow-ups (duplicate ids
-unvalidated, no DOM/render tests) and the three open product questions above
-still need triage/decisions before merge.
+Merged: all work-unit commits through `a882a5a` (`fix(simulation): preserve
+speed on tween rebuild and harden flow editor`) are in `main`; `main` ==
+`origin/main`. No further push or PR action pending.
+
+Still open (survive the merge, not resolved by it):
+- The three product questions above (default `iconStyle` BLOCK vs opt-in;
+  `ICON_BLOCK_EXTRUDE_HEIGHT` at 35%; `ICON_BLOCK_BASE_COLOR` `#e7ecf5` vs
+  deriving from `customVars.customPalette.diagramBg`).
+- Duplicate flow/step id validation is still missing.
+- No DOM/render tests (`ConnectorPacket`/`Node`/`FlowPlaybackBar`/
+  `FlowEditorDialog`/`IsometricBlockIcon`).
+
+Status reconciled against git on 2026-09-22.
