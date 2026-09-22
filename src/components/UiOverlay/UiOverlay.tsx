@@ -19,6 +19,7 @@ import { FlowEditorDialog } from 'src/components/FlowControls/FlowEditorDialog';
 import { ViewSwitcher } from 'src/components/ViewSwitcher/ViewSwitcher';
 import { IssuesPanel } from 'src/components/IssuesPanel/IssuesPanel';
 import { SecurityReportDialog } from 'src/components/SecurityReportDialog/SecurityReportDialog';
+import { CostReportDialog } from 'src/components/CostReportDialog/CostReportDialog';
 import { ExportImageDialog } from '../ExportImageDialog/ExportImageDialog';
 
 const ToolsEnum = {
@@ -311,6 +312,14 @@ export const UiOverlay = () => {
 
       {dialog === 'SECURITY_REPORT' && availableTools.includes('TOOL_MENU') && (
         <SecurityReportDialog
+          onClose={() => {
+            return uiStateActions.setDialog(null);
+          }}
+        />
+      )}
+
+      {dialog === 'COST_REPORT' && availableTools.includes('TOOL_MENU') && (
+        <CostReportDialog
           onClose={() => {
             return uiStateActions.setDialog(null);
           }}

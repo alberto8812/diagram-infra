@@ -117,7 +117,8 @@ export const DialogTypeEnum = {
   EXPORT_IMAGE: 'EXPORT_IMAGE',
   FLOW_EDITOR: 'FLOW_EDITOR',
   ISSUES: 'ISSUES',
-  SECURITY_REPORT: 'SECURITY_REPORT'
+  SECURITY_REPORT: 'SECURITY_REPORT',
+  COST_REPORT: 'COST_REPORT'
 } as const;
 
 export interface ContextMenu {
