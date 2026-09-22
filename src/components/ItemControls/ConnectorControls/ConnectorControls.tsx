@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Connector,
   connectorStyleOptions,
@@ -66,6 +66,21 @@ export const ConnectorControls = ({ id }: Props) => {
   const [portText, setPortText] = useState(() => {
     return connector.port !== undefined ? String(connector.port) : '';
   });
+
+  // Re-sync the buffer when the connector's port changes for a reason other
+  // than this field's own onChange (e.g. undo/redo, a remote update). See
+  // the equivalent effect in NodeSettings.tsx for why the comparison goes
+  // through parsePortInput() instead of comparing raw strings.
+  useEffect(() => {
+    const buffered = parsePortInput(portText, false);
+    const bufferedValue =
+      buffered.action === 'set' ? buffered.value : undefined;
+
+    if (bufferedValue !== connector.port) {
+      setPortText(connector.port !== undefined ? String(connector.port) : '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connector.port]);
 
   return (
     <ControlsContainer>

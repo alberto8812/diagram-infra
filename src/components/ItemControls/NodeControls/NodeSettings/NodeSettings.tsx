@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Slider,
   Box,
@@ -81,6 +81,22 @@ export const NodeSettings = ({
   const [portText, setPortText] = useState(() => {
     return modelItem.port !== undefined ? String(modelItem.port) : '';
   });
+
+  // Re-sync the buffer when the model's port changes for a reason other
+  // than this field's own onChange (e.g. undo/redo, a remote update).
+  // Comparing through parsePortInput (rather than the raw string) avoids
+  // clobbering an in-progress, not-yet-committed keystroke that still
+  // represents the same stored value.
+  useEffect(() => {
+    const buffered = parsePortInput(portText, false);
+    const bufferedValue =
+      buffered.action === 'set' ? buffered.value : undefined;
+
+    if (bufferedValue !== modelItem.port) {
+      setPortText(modelItem.port !== undefined ? String(modelItem.port) : '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelItem.port]);
 
   return (
     <>
