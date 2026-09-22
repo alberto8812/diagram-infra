@@ -390,4 +390,72 @@ describe('getMissingReturnPathSteps() works correctly', () => {
       }
     ]);
   });
+
+  // `durationMs` is excluded from the hop match for the same reason `label`
+  // is, and without this the exclusion would be untested: every other case
+  // here differs by label alone, so putting `durationMs` back into the
+  // comparison would still leave them green.
+  test('stays idempotent when a mirrored response duration was edited by the user', () => {
+    const steps: FlowStep[] = [
+      {
+        id: 's1',
+        connectorId: 'conn1',
+        direction: 'REQUEST',
+        durationMs: 1600
+      },
+      {
+        id: 's2',
+        connectorId: 'conn2',
+        direction: 'REQUEST',
+        durationMs: 1800
+      },
+      {
+        id: 's3',
+        connectorId: 'conn2',
+        direction: 'RESPONSE',
+        durationMs: 400
+      },
+      {
+        id: 's4',
+        connectorId: 'conn1',
+        direction: 'RESPONSE',
+        durationMs: 500
+      }
+    ];
+
+    expect(getMissingReturnPathSteps(steps, makeCounter())).toStrictEqual([]);
+  });
+
+  // The negative case for the structural match: matching on connector and
+  // direction must still reject a hop on another connector, otherwise any
+  // trailing RESPONSE would be mistaken for the start of the return path.
+  // A tail step always sits after the last REQUEST, so it is always a
+  // RESPONSE — only the connector half can be exercised from here.
+  test('does not treat a response on an unrelated connector as a mirrored hop', () => {
+    const steps: FlowStep[] = [
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST', label: 'Edita' },
+      { id: 's2', connectorId: 'conn2', direction: 'REQUEST', label: 'Push' },
+      {
+        id: 's3',
+        connectorId: 'conn9',
+        direction: 'RESPONSE',
+        label: 'Aviso aparte'
+      }
+    ];
+
+    expect(getMissingReturnPathSteps(steps, makeCounter())).toStrictEqual([
+      {
+        id: 'generated-1',
+        connectorId: 'conn2',
+        direction: 'RESPONSE',
+        label: 'Push'
+      },
+      {
+        id: 'generated-2',
+        connectorId: 'conn1',
+        direction: 'RESPONSE',
+        label: 'Edita'
+      }
+    ]);
+  });
 });
