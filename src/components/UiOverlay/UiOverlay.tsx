@@ -177,7 +177,11 @@ export const UiOverlay = () => {
                   alignItems: 'center',
                   minWidth: 0,
                   px: 1.5,
-                  height: controlHeight
+                  height: controlHeight,
+                  // Read-only by default (title text, chevron): pass clicks
+                  // through to the canvas underneath. ViewSwitcher opts back
+                  // into pointer events on just its own interactive element.
+                  pointerEvents: 'none'
                 }}
               >
                 <Stack

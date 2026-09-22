@@ -164,9 +164,16 @@ export const BasicEditor = () => {
   // A single debounced save for the component's lifetime. onModelUpdated
   // fires on every model change, including each frame of a drag, so the
   // write is debounced rather than issued per event.
+  //
+  // The target name is a parameter, not a read of currentNameRef here: debounce()
+  // captures its arguments when the call is *scheduled*, so passing
+  // currentNameRef.current at the call site (below) binds the save to whichever
+  // diagram was being edited at that moment. Reading the ref inside this
+  // callback instead would read it when the timer *fires*, which can be after
+  // switchDiagram has already moved the ref on to a different diagram.
   const debouncedSave = useMemo(() => {
-    return debounce((model: Model) => {
-      const savePromise = saveDiagram(currentNameRef.current, model);
+    return debounce((name: string, model: Model) => {
+      const savePromise = saveDiagram(name, model);
       pendingSaveRef.current = savePromise;
       return savePromise;
     }, SAVE_DEBOUNCE_MS);
@@ -245,6 +252,14 @@ export const BasicEditor = () => {
 
       if (!switchGuard.isLatest(requestId)) return;
 
+      // An edit made while awaiting flushPendingSave()/loadDiagram() above can
+      // schedule a new debounced call bound (at schedule time) to the diagram
+      // being left. debounce() only remembers one pending call, so once
+      // editing resumes against the new diagram below, a still-pending call
+      // for the old one would be silently overwritten and lost. Flushing here
+      // lands it first, before currentNameRef moves on.
+      await flushPendingSave();
+
       currentNameRef.current = name;
       setDiagramName(name);
       writeStoredDiagramName(name);
@@ -286,7 +301,9 @@ export const BasicEditor = () => {
         <Isoflow
           key={diagramName}
           initialData={restored ?? { ...initialData, fitToView: true }}
-          onModelUpdated={debouncedSave}
+          onModelUpdated={(model) => {
+            debouncedSave(currentNameRef.current, model);
+          }}
         />
       )}
 

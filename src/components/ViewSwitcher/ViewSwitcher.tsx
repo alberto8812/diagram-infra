@@ -150,8 +150,14 @@ export const ViewSwitcher = ({ editable = true }: Props) => {
   const currentViewId = useUiStateStore((state) => {
     return state.view;
   });
-  const model = useModelStore((state) => {
-    return modelFromModelStore(state);
+  // Only `actions` is subscribed here (a stable reference for the store's
+  // lifetime), not the model itself: changeView/createView only need the
+  // model inside their click handlers below, not for rendering, so reading
+  // it through actions.get() at call time avoids re-rendering this component
+  // on every model change (the previous `modelFromModelStore(state)`
+  // selector returned a fresh object on every store update).
+  const modelActions = useModelStore((state) => {
+    return state.actions;
   });
   const { changeView, createView } = useView();
 
@@ -180,9 +186,11 @@ export const ViewSwitcher = ({ editable = true }: Props) => {
   const handleSwitch = useCallback(
     (viewId: string) => {
       closeMenu();
-      if (viewId !== currentViewId) changeView(viewId, model);
+      if (viewId !== currentViewId) {
+        changeView(viewId, modelFromModelStore(modelActions.get()));
+      }
     },
-    [closeMenu, currentViewId, changeView, model]
+    [closeMenu, currentViewId, changeView, modelActions]
   );
 
   const handleOpenAddLayer = useCallback(() => {
@@ -193,9 +201,9 @@ export const ViewSwitcher = ({ editable = true }: Props) => {
   const handleCreate = useCallback(
     (name: string) => {
       setAddLayerOpen(false);
-      createView({ name }, model);
+      createView({ name }, modelFromModelStore(modelActions.get()));
     },
-    [createView, model]
+    [createView, modelActions]
   );
 
   // With one view and nothing to switch to or add, fall back to the plain
@@ -217,7 +225,10 @@ export const ViewSwitcher = ({ editable = true }: Props) => {
         alignItems="center"
         spacing={0.25}
         onClick={openMenu}
-        sx={{ cursor: 'pointer', minWidth: 0 }}
+        // The breadcrumb container this sits in is pointerEvents: 'none' (it
+        // is otherwise read-only text), so this, the one interactive element
+        // in it, opts back in explicitly.
+        sx={{ cursor: 'pointer', minWidth: 0, pointerEvents: 'auto' }}
       >
         <Typography
           variant="body2"

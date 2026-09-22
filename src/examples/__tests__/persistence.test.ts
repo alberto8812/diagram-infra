@@ -189,6 +189,28 @@ describe('debounce()', () => {
     expect(result).toBeUndefined();
     expect(fn).not.toHaveBeenCalled();
   });
+
+  // Regression coverage for a BasicEditor bug (T5b): a caller closing over
+  // mutable state (e.g. "which diagram is being edited") and reading it
+  // *inside* the debounced callback would read whatever that state became by
+  // the time the timer fires, not what it was when the call was scheduled.
+  // debounce() itself already avoids this: `args` is captured synchronously
+  // inside the returned `debounced()` function, before the timer is even
+  // set, so passing the mutable value as an explicit argument at the call
+  // site binds it correctly regardless of what happens before the timer
+  // fires.
+  test("captures each call's arguments at call time, not when the timer fires", () => {
+    const fn = jest.fn();
+    const debounced = debounce(fn, 100);
+    let target = 'a';
+
+    debounced(target, 'first');
+    target = 'b'; // mutated after scheduling, before the timer fires
+    jest.advanceTimersByTime(100);
+
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(fn).toHaveBeenCalledWith('a', 'first');
+  });
 });
 
 describe('createRequestGuard()', () => {
@@ -210,7 +232,13 @@ describe('createRequestGuard()', () => {
     expect(guard.isLatest(second)).toBe(true);
   });
 
-  test('an id issued before any request exists is never latest', () => {
+  test('an id checked before any request exists is not latest', () => {
+    const guard = createRequestGuard();
+
+    expect(guard.isLatest(1)).toBe(false);
+  });
+
+  test('that same id becomes latest once next() actually issues it', () => {
     const guard = createRequestGuard();
 
     expect(guard.isLatest(1)).toBe(false);
