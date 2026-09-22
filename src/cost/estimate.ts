@@ -49,16 +49,26 @@ const findStorageRate = (
 // No region set is not an approximation (there is nothing to fall back
 // from); an unrecognized region falls back to the catalog's base
 // (unadjusted) price and is reported as such.
+//
+// `region` is attacker/input-controlled — it comes straight from a model
+// item, which can be populated from a free-text Terraform import — so a
+// plain `catalog.regions[region]` lookup would return inherited members for
+// keys like `__proto__`/`constructor`/`toString` instead of `undefined`,
+// making them look like a known region with a bogus multiplier.
+// `Object.prototype.hasOwnProperty` guards against that the same way
+// `ENVIRONMENT_ALIASES` (a `Map`) does in
+// src/import/terraform/attributes.ts.
 const regionMultiplier = (
   region: string | undefined,
   catalog: CostCatalog
 ): { multiplier: number; known: boolean } => {
   if (!region) return { multiplier: 1, known: true };
 
-  const entry = catalog.regions[region];
-  return entry
-    ? { multiplier: entry.multiplier, known: true }
-    : { multiplier: 1, known: false };
+  if (!Object.prototype.hasOwnProperty.call(catalog.regions, region)) {
+    return { multiplier: 1, known: false };
+  }
+
+  return { multiplier: catalog.regions[region].multiplier, known: true };
 };
 
 export const estimateItemCost = (

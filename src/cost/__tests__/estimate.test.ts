@@ -74,6 +74,20 @@ describe('estimateItemCost()', () => {
     expect(result.reasons.join(' ')).toMatch(/mars-1/);
   });
 
+  test.each(['__proto__', 'constructor', 'toString'])(
+    'region fallback: a prototype-property region name (%s) is never treated as known',
+    (region) => {
+      const result = estimateItemCost(
+        item({ kind: 'service', size: 't3.medium', region }),
+        testCatalog
+      );
+
+      expect(result.monthlyUsd).toBe(30);
+      expect(result.confidence).toBe('approximate');
+      expect(result.reasons.join(' ')).toMatch(region);
+    }
+  );
+
   test('storage: a storageGb-only item prices from the storage table', () => {
     const result = estimateItemCost(
       item({ kind: 'storage', storageGb: 100 }),

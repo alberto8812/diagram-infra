@@ -28,10 +28,42 @@ export const parseNumberInput = (
 
   const parsed = Number(text);
 
-  if (Number.isNaN(parsed)) return { action: 'ignore' };
+  // `Number.isFinite` rather than `!Number.isNaN`: `Number("1e400")` is
+  // `Infinity`, not `NaN`, so a NaN-only check would accept it (and
+  // `-Infinity`) and serialize as `null` downstream instead of being
+  // rejected like other out-of-range input.
+  if (!Number.isFinite(parsed)) return { action: 'ignore' };
   if (integer && !Number.isInteger(parsed)) return { action: 'ignore' };
   if (parsed < min) return { action: 'ignore' };
   if (max !== undefined && parsed > max) return { action: 'ignore' };
 
   return { action: 'set', value: parsed };
+};
+
+export type BufferedNumberInputDecision =
+  { commit: true; value: number | undefined } | { commit: false };
+
+/**
+ * Pure decision logic shared by every buffered `<input type="number">`
+ * field backed by `parseNumberInput` (e.g. NodeSettings.tsx's Count and
+ * Storage fields): given the raw text change and the value currently
+ * stored on the model, decides whether the model should be updated, and to
+ * what. The caller still owns updating its own local text buffer — this
+ * only decides the model-side commit, and never commits a no-op (ignored
+ * input, or a parsed value that already matches what's stored).
+ */
+export const decideBufferedNumberInput = (
+  text: string,
+  badInput: boolean,
+  options: ParseNumberInputOptions,
+  currentValue: number | undefined
+): BufferedNumberInputDecision => {
+  const result = parseNumberInput(text, badInput, options);
+
+  if (result.action === 'ignore') return { commit: false };
+
+  const nextValue = result.action === 'clear' ? undefined : result.value;
+  if (nextValue === currentValue) return { commit: false };
+
+  return { commit: true, value: nextValue };
 };

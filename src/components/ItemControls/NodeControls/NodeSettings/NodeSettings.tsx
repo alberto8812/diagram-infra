@@ -29,7 +29,10 @@ import { useScene } from 'src/hooks/useScene';
 import { NODE_ICON_STYLE_DEFAULT } from 'src/config';
 import { LABEL_MAX_LENGTH } from 'src/schemas/common';
 import { parsePortInput, PORT_MIN, PORT_MAX } from 'src/utils/parsePortInput';
-import { parseNumberInput } from 'src/utils/parseNumberInput';
+import {
+  parseNumberInput,
+  decideBufferedNumberInput
+} from 'src/utils/parseNumberInput';
 import { getItemZones } from 'src/utils/containment';
 import { ZONE_KIND_LABELS } from 'src/utils/zoneLabels';
 import { catalog, estimateItemCost } from 'src/cost';
@@ -395,23 +398,15 @@ export const NodeSettings = ({
               const text = e.target.value;
               setCountText(text);
 
-              const result = parseNumberInput(
+              const decision = decideBufferedNumberInput(
                 text,
                 e.target.validity.badInput,
-                {
-                  min: 1,
-                  integer: true
-                }
+                { min: 1, integer: true },
+                modelItem.count
               );
 
-              if (result.action === 'ignore') return;
-              if (result.action === 'clear') {
-                if (modelItem.count !== undefined)
-                  onModelItemUpdated({ count: undefined });
-                return;
-              }
-              if (modelItem.count !== result.value)
-                onModelItemUpdated({ count: result.value });
+              if (decision.commit)
+                onModelItemUpdated({ count: decision.value });
             }}
           />
 
@@ -425,22 +420,15 @@ export const NodeSettings = ({
               const text = e.target.value;
               setStorageText(text);
 
-              const result = parseNumberInput(
+              const decision = decideBufferedNumberInput(
                 text,
                 e.target.validity.badInput,
-                {
-                  min: 0
-                }
+                { min: 0 },
+                modelItem.storageGb
               );
 
-              if (result.action === 'ignore') return;
-              if (result.action === 'clear') {
-                if (modelItem.storageGb !== undefined)
-                  onModelItemUpdated({ storageGb: undefined });
-                return;
-              }
-              if (modelItem.storageGb !== result.value)
-                onModelItemUpdated({ storageGb: result.value });
+              if (decision.commit)
+                onModelItemUpdated({ storageGb: decision.value });
             }}
           />
 
