@@ -1,10 +1,12 @@
-import { Connector, FlowStep, ModelItem, View } from 'src/types';
+import { Connector, Flow, FlowStep, ModelItem, View } from 'src/types';
 import {
   findFlowStepConnector,
   getConnectorEndpointLabel,
   buildReturnPathSteps,
   getMissingReturnPathSteps,
-  getPacketLabel
+  getPacketLabel,
+  resolveNextSteps,
+  getFlowStartSteps
 } from '../flow';
 
 const connector = (id: string, anchors: Connector['anchors']): Connector => {
@@ -104,6 +106,178 @@ describe('getPacketLabel() works correctly', () => {
   test('returns undefined when neither a label nor a protocol is set', () => {
     expect(getPacketLabel({}, {})).toBeUndefined();
     expect(getPacketLabel(undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe('resolveNextSteps() works correctly', () => {
+  const makeFlow = (steps: FlowStep[]): Flow => {
+    return { id: 'flow1', name: 'Flow 1', steps };
+  };
+
+  test('falls back to array order when no step declares next', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST'
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+    const step3: FlowStep = {
+      id: 's3',
+      connectorId: 'conn3',
+      direction: 'REQUEST'
+    };
+    const flow = makeFlow([step1, step2, step3]);
+
+    expect(resolveNextSteps(flow, 's1')).toStrictEqual([step2]);
+    expect(resolveNextSteps(flow, 's2')).toStrictEqual([step3]);
+    expect(resolveNextSteps(flow, 's3')).toStrictEqual([]);
+  });
+
+  test('an explicit single successor overrides array order', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['s3']
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+    const step3: FlowStep = {
+      id: 's3',
+      connectorId: 'conn3',
+      direction: 'REQUEST'
+    };
+    const flow = makeFlow([step1, step2, step3]);
+
+    expect(resolveNextSteps(flow, 's1')).toStrictEqual([step3]);
+  });
+
+  test('two declared successors are both returned, in the declared order', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['s3', 's2']
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+    const step3: FlowStep = {
+      id: 's3',
+      connectorId: 'conn3',
+      direction: 'REQUEST'
+    };
+    const flow = makeFlow([step1, step2, step3]);
+
+    expect(resolveNextSteps(flow, 's1')).toStrictEqual([step3, step2]);
+  });
+
+  test('a dangling id in next is skipped, without throwing', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['missing', 's2']
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+    const flow = makeFlow([step1, step2]);
+
+    expect(resolveNextSteps(flow, 's1')).toStrictEqual([step2]);
+  });
+
+  test('returns an empty array when every id in next is dangling', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['missing1', 'missing2']
+    };
+    const flow = makeFlow([step1]);
+
+    expect(resolveNextSteps(flow, 's1')).toStrictEqual([]);
+  });
+
+  test('a duplicated id in next resolves to the same step only once', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['s2', 's2']
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+    const flow = makeFlow([step1, step2]);
+
+    expect(resolveNextSteps(flow, 's1')).toStrictEqual([step2]);
+  });
+
+  test('returns an empty array for an unknown stepId', () => {
+    const flow = makeFlow([
+      { id: 's1', connectorId: 'conn1', direction: 'REQUEST' }
+    ]);
+
+    expect(resolveNextSteps(flow, 'unknown')).toStrictEqual([]);
+  });
+
+  test('a cycle does not hang: resolving is one hop, not a traversal', () => {
+    const stepA: FlowStep = {
+      id: 'a',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['b']
+    };
+    const stepB: FlowStep = {
+      id: 'b',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['a']
+    };
+    const flow = makeFlow([stepA, stepB]);
+
+    expect(resolveNextSteps(flow, 'a')).toStrictEqual([stepB]);
+    expect(resolveNextSteps(flow, 'b')).toStrictEqual([stepA]);
+  });
+});
+
+describe('getFlowStartSteps() works correctly', () => {
+  const makeFlow = (steps: FlowStep[]): Flow => {
+    return { id: 'flow1', name: 'Flow 1', steps };
+  };
+
+  test('returns the first step of the array', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST'
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+    const flow = makeFlow([step1, step2]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([step1]);
+  });
+
+  test('returns an empty array for a flow with no steps', () => {
+    expect(getFlowStartSteps(makeFlow([]))).toStrictEqual([]);
   });
 });
 

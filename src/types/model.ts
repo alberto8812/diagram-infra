@@ -19,6 +19,7 @@ import {
   flowStepSchema,
   flowsSchema,
   flowStepDirectionOptions,
+  flowStepOutcomeOptions,
   iconStyleOptions,
   resourceKindOptions,
   environmentOptions,
@@ -34,6 +35,7 @@ import { StoreApi } from 'zustand';
 export { connectorStyleOptions } from 'src/schemas';
 export { connectorDirectionOptions } from 'src/schemas';
 export { flowStepDirectionOptions } from 'src/schemas';
+export { flowStepOutcomeOptions } from 'src/schemas';
 export { iconStyleOptions } from 'src/schemas';
 export { resourceKindOptions } from 'src/schemas';
 export { environmentOptions } from 'src/schemas';
@@ -62,6 +64,7 @@ export type FlowStep = z.infer<typeof flowStepSchema>;
 export type Flow = z.infer<typeof flowSchema>;
 export type Flows = z.infer<typeof flowsSchema>;
 export type FlowStepDirection = (typeof flowStepDirectionOptions)[number];
+export type FlowStepOutcome = (typeof flowStepOutcomeOptions)[number];
 export type IconStyle = (typeof iconStyleOptions)[number];
 export type ResourceKind = (typeof resourceKindOptions)[number];
 export type Environment = (typeof environmentOptions)[number];
