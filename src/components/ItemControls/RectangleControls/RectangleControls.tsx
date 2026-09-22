@@ -67,7 +67,16 @@ export const RectangleControls = ({ id }: Props) => {
                 return;
               }
 
-              updateRectangle(rectangle.id, { zone: value });
+              // Visibility only means something for a subnet zone (the
+              // toggle below is only shown when rectangle.zone ===
+              // 'subnet'); switching to any other kind must clear it too,
+              // or a stale value stays hidden but persisted on the
+              // rectangle.
+              updateRectangle(rectangle.id, {
+                zone: value,
+                visibility:
+                  value === 'subnet' ? rectangle.visibility : undefined
+              });
             }}
           >
             <MenuItem value="">

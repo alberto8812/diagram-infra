@@ -201,6 +201,76 @@ describe('getZoneParent() / buildZoneTree()', () => {
   });
 });
 
+describe('getZoneParent() with identical-bounds zones', () => {
+  test('two identical-bounds zones form a parent chain (smaller id innermost)', () => {
+    const a = rect({
+      id: 'zoneA',
+      zone: 'vpc',
+      from: { x: 0, y: 0 },
+      to: { x: 5, y: 5 }
+    });
+    const b = rect({
+      id: 'zoneB',
+      zone: 'vpc',
+      from: { x: 0, y: 0 },
+      to: { x: 5, y: 5 }
+    });
+
+    const testView = view({ id: 'v1', rectangles: [a, b] });
+
+    // Innermost -> outermost order from getZonesForTile is [zoneA, zoneB],
+    // so the parent chain must be the reverse of that: A's parent is B,
+    // and B (outermost) has no parent.
+    expect(getZoneParent(testView, 'zoneA')?.id).toBe('zoneB');
+    expect(getZoneParent(testView, 'zoneB')).toBeUndefined();
+  });
+
+  test('three identical-bounds zones chain innermost to outermost, none sharing a parent', () => {
+    const a = rect({
+      id: 'zoneA',
+      zone: 'vpc',
+      from: { x: 0, y: 0 },
+      to: { x: 5, y: 5 }
+    });
+    const b = rect({
+      id: 'zoneB',
+      zone: 'vpc',
+      from: { x: 0, y: 0 },
+      to: { x: 5, y: 5 }
+    });
+    const c = rect({
+      id: 'zoneC',
+      zone: 'vpc',
+      from: { x: 0, y: 0 },
+      to: { x: 5, y: 5 }
+    });
+
+    const testView = view({ id: 'v1', rectangles: [a, b, c] });
+
+    const innermostToOutermost = getZonesForTile(testView, { x: 0, y: 0 }).map(
+      (z) => {
+        return z.id;
+      }
+    );
+    expect(innermostToOutermost).toStrictEqual(['zoneA', 'zoneB', 'zoneC']);
+
+    // The parent chain is the exact reverse of the innermost -> outermost
+    // order: each zone's parent is the next one out, never all three
+    // collapsing onto the same outermost zone.
+    expect(getZoneParent(testView, 'zoneA')?.id).toBe('zoneB');
+    expect(getZoneParent(testView, 'zoneB')?.id).toBe('zoneC');
+    expect(getZoneParent(testView, 'zoneC')).toBeUndefined();
+
+    const tree = buildZoneTree(testView);
+    expect(tree).toHaveLength(1);
+    expect(tree[0].zone.id).toBe('zoneC');
+    expect(tree[0].children).toHaveLength(1);
+    expect(tree[0].children[0].zone.id).toBe('zoneB');
+    expect(tree[0].children[0].children).toHaveLength(1);
+    expect(tree[0].children[0].children[0].zone.id).toBe('zoneA');
+  });
+});
+
 describe('findPartialZoneOverlaps()', () => {
   test('reports zones whose bounds intersect without full containment', () => {
     const a = rect({
@@ -393,6 +463,21 @@ describe('crossesZoneBoundary()', () => {
     const connector: Connector = {
       id: 'c4',
       anchors: [{ id: 'a1', ref: { item: 'insideItem' } }]
+    };
+
+    expect(crossesZoneBoundary(testView, connector)).toStrictEqual({
+      entered: [],
+      left: []
+    });
+  });
+
+  test('an anchor that cannot be resolved (dangling item ref) crosses no boundary', () => {
+    const connector: Connector = {
+      id: 'c5',
+      anchors: [
+        { id: 'a1', ref: { item: 'insideItem' } },
+        { id: 'a2', ref: { item: 'does-not-exist' } }
+      ]
     };
 
     expect(crossesZoneBoundary(testView, connector)).toStrictEqual({

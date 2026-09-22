@@ -132,39 +132,40 @@ export const getItemZones = (view: View, itemId: string): ZoneRectangle[] => {
 };
 
 // The immediate containing zone (smallest zone that fully contains this
-// zone, excluding itself), or undefined when the zone is a root. When two
-// zones share identical bounds, the lexicographically smaller id is treated
-// as the outer one so containment never becomes a mutual cycle.
+// zone, excluding itself), or undefined when the zone is a root.
+//
+// Uses the same total order as getZonesForTile/getItemZones (area
+// ascending, then id — see sortByAreaThenId) and walks forward from the
+// target's own position in that order, returning the first zone that fully
+// contains it. Equal-area containment only holds between identical bounds
+// (a smaller-or-equal-area zone can only fully contain another by being
+// exactly the same rectangle), so this makes N identical-bounds zones chain
+// in that single order — each one's parent is the next zone outward —
+// instead of every zone independently picking the same one "outermost"
+// sibling via two tie-breaks that disagreed on which id was inner and which
+// was outer.
 export const getZoneParent = (
   view: View,
   zoneId: string
 ): ZoneRectangle | undefined => {
-  const zones = getZoneRectangles(view);
-  const target = zones.find((zone) => {
+  const orderedZones = [...getZoneRectangles(view)].sort(sortByAreaThenId);
+  const targetIndex = orderedZones.findIndex((zone) => {
     return zone.id === zoneId;
   });
 
-  if (!target) return undefined;
+  if (targetIndex === -1) return undefined;
 
-  const targetBounds = normalizeRectangleBounds(target);
-  const targetArea = boundsArea(targetBounds);
+  const targetBounds = normalizeRectangleBounds(orderedZones[targetIndex]);
 
-  const candidates = zones.filter((zone) => {
-    if (zone.id === zoneId) return false;
+  for (let i = targetIndex + 1; i < orderedZones.length; i += 1) {
+    const candidate = orderedZones[i];
 
-    const bounds = normalizeRectangleBounds(zone);
-    if (!boundsFullyContain(bounds, targetBounds)) return false;
-
-    if (boundsArea(bounds) === targetArea) {
-      return zone.id < zoneId;
+    if (boundsFullyContain(normalizeRectangleBounds(candidate), targetBounds)) {
+      return candidate;
     }
+  }
 
-    return true;
-  });
-
-  if (candidates.length === 0) return undefined;
-
-  return [...candidates].sort(sortByAreaThenId)[0];
+  return undefined;
 };
 
 // The full zone hierarchy for a view, built from geometric containment.
