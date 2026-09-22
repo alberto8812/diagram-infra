@@ -47,20 +47,31 @@ export const VIEW_ITEM_DEFAULTS: Required<Omit<ViewItem, 'id' | 'tile'>> = {
   labelHeight: 80
 };
 
-// `protocol`, `port`, `mode` and `auth` (roadmap item 2,
-// src/schemas/connector.ts) are deliberately excluded here instead of given
-// an invented value: this object gets spread onto every connector wherever
-// it's read (see src/hooks/useScene.ts `connectors`), and that merged value
-// is what gets written back to the model on interactions like dragging a
-// connector anchor (src/interaction/modes/DragItems.ts). A concrete
-// protocol/port/mode/auth has no neutral choice and would silently start
-// writing onto connectors that never had one set. Every reader treats an
+// `protocol`, `port`, `mode`, `auth` and `encryptedInTransit` (roadmap items
+// 2 and P2, src/schemas/connector.ts) are deliberately excluded here instead
+// of given an invented value: this object gets spread onto every connector
+// wherever it's read (see src/hooks/useScene.ts `connectors`), and that
+// merged value is what gets written back to the model on interactions like
+// dragging a connector anchor (src/interaction/modes/DragItems.ts). A
+// concrete protocol/port/mode/auth/encryptedInTransit has no neutral choice
+// and would silently start writing onto connectors that never had one set.
+// `encryptedInTransit` unset is read through isEncryptedInTransit()
+// (src/security/encryption.ts) instead. Every reader treats an
 // undefined `mode` as `sync` instead (see src/utils/flow.ts
 // `buildReturnPathSteps` and the mode toggle in ConnectorControls), which
 // matches the existing (pre-this-feature) simulation behavior for a
 // connector with no mode set.
 export const CONNECTOR_DEFAULTS: Required<
-  Omit<Connector, 'id' | 'color' | 'protocol' | 'port' | 'auth' | 'mode'>
+  Omit<
+    Connector,
+    | 'id'
+    | 'color'
+    | 'protocol'
+    | 'port'
+    | 'auth'
+    | 'mode'
+    | 'encryptedInTransit'
+  >
 > = {
   width: 10,
   description: '',

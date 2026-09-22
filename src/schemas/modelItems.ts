@@ -26,6 +26,21 @@ export const resourceKindOptions = [
 
 export const environmentOptions = ['dev', 'test', 'prod'] as const;
 
+// Infrastructure roadmap item P2 (threat modeling + compliance mapping):
+// optional security attributes on a model item. Every field is optional so
+// existing diagrams (including diagrams/infra.json) keep loading through
+// modelSchema.safeParse unchanged. These are deliberately never added to
+// any *_DEFAULTS write-back object (see src/config.ts) — same reasoning as
+// the P0/roadmap-item-2 fields already excluded there: a concrete default
+// has no neutral choice and would silently start writing onto items that
+// never had one set.
+export const dataClassificationOptions = [
+  'public',
+  'internal',
+  'confidential',
+  'restricted'
+] as const;
+
 export const modelItemSchema = z.object({
   id,
   name: constrainedStrings.name,
@@ -40,7 +55,10 @@ export const modelItemSchema = z.object({
   version: constrainedStrings.label.optional(),
   region: constrainedStrings.label.optional(),
   owner: constrainedStrings.label.optional(),
-  port: z.number().int().min(1).max(65535).optional()
+  port: z.number().int().min(1).max(65535).optional(),
+  dataClassification: z.enum(dataClassificationOptions).optional(),
+  encryptedAtRest: z.boolean().optional(),
+  internetFacing: z.boolean().optional()
 });
 
 export const modelItemsSchema = z.array(modelItemSchema);

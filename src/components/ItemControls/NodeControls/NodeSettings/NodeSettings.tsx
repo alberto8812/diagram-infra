@@ -18,7 +18,9 @@ import {
   resourceKindOptions,
   ResourceKind,
   environmentOptions,
-  Environment
+  Environment,
+  dataClassificationOptions,
+  DataClassification
 } from 'src/types';
 import { MarkdownEditor } from 'src/components/MarkdownEditor/MarkdownEditor';
 import { useModelItem } from 'src/hooks/useModelItem';
@@ -55,6 +57,29 @@ const ENVIRONMENT_LABELS: Record<Environment, string> = {
   dev: 'Dev',
   test: 'Test',
   prod: 'Prod'
+};
+
+const DATA_CLASSIFICATION_LABELS: Record<DataClassification, string> = {
+  public: 'Public',
+  internal: 'Internal',
+  confidential: 'Confidential',
+  restricted: 'Restricted'
+};
+
+// A tri-state (yes/no/unset) toggle pair backed by an exclusive
+// ToggleButtonGroup — clicking the currently-selected option deselects it
+// (MUI reports `null`), which this maps back to `undefined`. Mirrors the
+// existing environment ToggleButtonGroup's clear-by-reclick behavior above.
+type TriStateValue = boolean | undefined;
+
+const triStateToToggleValue = (value: TriStateValue): 'yes' | 'no' | null => {
+  if (value === undefined) return null;
+  return value ? 'yes' : 'no';
+};
+
+const toggleValueToTriState = (value: 'yes' | 'no' | null): TriStateValue => {
+  if (value === null) return undefined;
+  return value === 'yes';
 };
 
 export type NodeUpdates = {
@@ -297,6 +322,70 @@ export const NodeSettings = ({
               onModelItemUpdated({ owner: text === '' ? undefined : text });
             }}
           />
+        </Stack>
+      </Section>
+      <Section title="Security">
+        <Stack spacing={2}>
+          <Select
+            size="small"
+            displayEmpty
+            value={modelItem.dataClassification ?? ''}
+            onChange={(e) => {
+              const value = e.target.value as DataClassification | '';
+              onModelItemUpdated({
+                dataClassification: value === '' ? undefined : value
+              });
+            }}
+          >
+            <MenuItem value="">
+              <em>None</em>
+            </MenuItem>
+            {dataClassificationOptions.map((classification) => {
+              return (
+                <MenuItem key={classification} value={classification}>
+                  {DATA_CLASSIFICATION_LABELS[classification]}
+                </MenuItem>
+              );
+            })}
+          </Select>
+
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Encrypted at rest
+            </Typography>
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={triStateToToggleValue(modelItem.encryptedAtRest)}
+              onChange={(e, newValue: 'yes' | 'no' | null) => {
+                onModelItemUpdated({
+                  encryptedAtRest: toggleValueToTriState(newValue)
+                });
+              }}
+            >
+              <ToggleButton value="yes">Yes</ToggleButton>
+              <ToggleButton value="no">No</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Internet-facing
+            </Typography>
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={triStateToToggleValue(modelItem.internetFacing)}
+              onChange={(e, newValue: 'yes' | 'no' | null) => {
+                onModelItemUpdated({
+                  internetFacing: toggleValueToTriState(newValue)
+                });
+              }}
+            >
+              <ToggleButton value="yes">Yes</ToggleButton>
+              <ToggleButton value="no">No</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
         </Stack>
       </Section>
       <Section>

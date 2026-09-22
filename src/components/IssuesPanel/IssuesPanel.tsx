@@ -16,6 +16,7 @@ import {
   Close as CloseIcon,
   ErrorOutline as ErrorIcon,
   InfoOutlined as InfoIcon,
+  SecurityOutlined as SecurityIcon,
   WarningAmberOutlined as WarningIcon
 } from '@mui/icons-material';
 import { useUiStateStore } from 'src/stores/uiStateStore';
@@ -131,9 +132,20 @@ export const IssuesPanel = ({ onClose }: Props) => {
         <Typography variant="subtitle1" fontWeight={600}>
           Issues
         </Typography>
-        <IconButton size="small" onClick={onClose}>
-          <CloseIcon fontSize="small" />
-        </IconButton>
+        <Stack direction="row" spacing={0.5}>
+          <IconButton
+            size="small"
+            title="Security report"
+            onClick={() => {
+              uiStateActions.setDialog('SECURITY_REPORT');
+            }}
+          >
+            <SecurityIcon fontSize="small" />
+          </IconButton>
+          <IconButton size="small" onClick={onClose}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Stack>
       </Stack>
 
       <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>

@@ -26,7 +26,8 @@ import {
   connectorModeOptions,
   connectorAuthOptions,
   zoneKindOptions,
-  zoneVisibilityOptions
+  zoneVisibilityOptions,
+  dataClassificationOptions
 } from 'src/schemas';
 import { StoreApi } from 'zustand';
 
@@ -41,6 +42,7 @@ export { connectorModeOptions } from 'src/schemas';
 export { connectorAuthOptions } from 'src/schemas';
 export { zoneKindOptions } from 'src/schemas';
 export { zoneVisibilityOptions } from 'src/schemas';
+export { dataClassificationOptions } from 'src/schemas';
 export type Model = z.infer<typeof modelSchema>;
 export type ModelItems = z.infer<typeof modelItemsSchema>;
 export type Icon = z.infer<typeof iconSchema>;
@@ -71,6 +73,7 @@ export type ConnectorCommunicationMode = (typeof connectorModeOptions)[number];
 export type ConnectorAuth = (typeof connectorAuthOptions)[number];
 export type ZoneKind = (typeof zoneKindOptions)[number];
 export type ZoneVisibility = (typeof zoneVisibilityOptions)[number];
+export type DataClassification = (typeof dataClassificationOptions)[number];
 
 export type ModelStore = Model & {
   actions: {
