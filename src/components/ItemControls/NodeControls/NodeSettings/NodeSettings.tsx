@@ -2,11 +2,23 @@ import React from 'react';
 import {
   Slider,
   Box,
+  Stack,
   TextField,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Select,
+  MenuItem
 } from '@mui/material';
-import { ModelItem, ViewItem, iconStyleOptions, IconStyle } from 'src/types';
+import {
+  ModelItem,
+  ViewItem,
+  iconStyleOptions,
+  IconStyle,
+  resourceKindOptions,
+  ResourceKind,
+  environmentOptions,
+  Environment
+} from 'src/types';
 import { MarkdownEditor } from 'src/components/MarkdownEditor/MarkdownEditor';
 import { useModelItem } from 'src/hooks/useModelItem';
 import { useIcon } from 'src/hooks/useIcon';
@@ -18,6 +30,29 @@ const ICON_STYLE_LABELS: Record<IconStyle, string> = {
   BLOCK: 'Isometric block',
   FLAT: 'Flat'
 };
+
+const RESOURCE_KIND_LABELS: Record<ResourceKind, string> = {
+  service: 'Service',
+  database: 'Database',
+  cache: 'Cache',
+  queue: 'Queue',
+  loadBalancer: 'Load balancer',
+  gateway: 'Gateway',
+  storage: 'Storage',
+  runner: 'Runner',
+  network: 'Network',
+  user: 'User',
+  external: 'External'
+};
+
+const ENVIRONMENT_LABELS: Record<Environment, string> = {
+  dev: 'Dev',
+  test: 'Test',
+  prod: 'Prod'
+};
+
+const MIN_PORT = 1;
+const MAX_PORT = 65535;
 
 export type NodeUpdates = {
   model: Partial<ModelItem>;
@@ -96,6 +131,127 @@ export const NodeSettings = ({
           </ToggleButtonGroup>
         </Section>
       )}
+      <Section title="Resource">
+        <Stack spacing={2}>
+          <Select
+            size="small"
+            displayEmpty
+            value={modelItem.kind ?? ''}
+            onChange={(e) => {
+              const value = e.target.value as ResourceKind | '';
+              onModelItemUpdated({ kind: value === '' ? undefined : value });
+            }}
+          >
+            <MenuItem value="">
+              <em>None</em>
+            </MenuItem>
+            {resourceKindOptions.map((kind) => {
+              return (
+                <MenuItem key={kind} value={kind}>
+                  {RESOURCE_KIND_LABELS[kind]}
+                </MenuItem>
+              );
+            })}
+          </Select>
+
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={modelItem.environment ?? null}
+            onChange={(e, newEnvironment: Environment | null) => {
+              if (newEnvironment === (modelItem.environment ?? null)) return;
+
+              onModelItemUpdated({
+                environment: newEnvironment ?? undefined
+              });
+            }}
+          >
+            {environmentOptions.map((environment) => {
+              return (
+                <ToggleButton key={environment} value={environment}>
+                  {ENVIRONMENT_LABELS[environment]}
+                </ToggleButton>
+              );
+            })}
+          </ToggleButtonGroup>
+
+          <TextField
+            label="Engine"
+            size="small"
+            value={modelItem.engine ?? ''}
+            onChange={(e) => {
+              const text = e.target.value;
+              if ((modelItem.engine ?? '') === text) return;
+
+              onModelItemUpdated({ engine: text === '' ? undefined : text });
+            }}
+          />
+
+          <TextField
+            label="Version"
+            size="small"
+            value={modelItem.version ?? ''}
+            onChange={(e) => {
+              const text = e.target.value;
+              if ((modelItem.version ?? '') === text) return;
+
+              onModelItemUpdated({ version: text === '' ? undefined : text });
+            }}
+          />
+
+          <TextField
+            label="Port"
+            size="small"
+            type="number"
+            inputProps={{ min: MIN_PORT, max: MAX_PORT }}
+            value={modelItem.port ?? ''}
+            onChange={(e) => {
+              const text = e.target.value;
+
+              if (text === '') {
+                if (modelItem.port !== undefined)
+                  onModelItemUpdated({ port: undefined });
+                return;
+              }
+
+              const parsed = Number(text);
+              if (
+                !Number.isInteger(parsed) ||
+                parsed < MIN_PORT ||
+                parsed > MAX_PORT
+              )
+                return;
+
+              if (modelItem.port !== parsed)
+                onModelItemUpdated({ port: parsed });
+            }}
+          />
+
+          <TextField
+            label="Region"
+            size="small"
+            value={modelItem.region ?? ''}
+            onChange={(e) => {
+              const text = e.target.value;
+              if ((modelItem.region ?? '') === text) return;
+
+              onModelItemUpdated({ region: text === '' ? undefined : text });
+            }}
+          />
+
+          <TextField
+            label="Owner"
+            size="small"
+            value={modelItem.owner ?? ''}
+            onChange={(e) => {
+              const text = e.target.value;
+              if ((modelItem.owner ?? '') === text) return;
+
+              onModelItemUpdated({ owner: text === '' ? undefined : text });
+            }}
+          />
+        </Stack>
+      </Section>
       <Section>
         <Box>
           <DeleteButton onClick={onDeleted} />
