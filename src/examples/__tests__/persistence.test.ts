@@ -4,6 +4,7 @@ import {
   parseDiagramListResponse,
   parseErrorBody,
   debounce,
+  createRequestGuard,
   DEFAULT_DIAGRAM_NAME,
   listDiagrams,
   createDiagram,
@@ -163,6 +164,60 @@ describe('debounce()', () => {
     debounced.flush();
 
     expect(fn).not.toHaveBeenCalled();
+  });
+
+  test("flush() returns a promise that resolves with the flushed call's result", async () => {
+    const fn = jest.fn(async (value: string) => {
+      return `saved:${value}`;
+    });
+    const debounced = debounce(fn, 100);
+
+    debounced('a');
+    const result = await debounced.flush();
+
+    expect(result).toBe('saved:a');
+  });
+
+  test('flush() with nothing pending resolves immediately with undefined', async () => {
+    const fn = jest.fn(async () => {
+      return 'never called';
+    });
+    const debounced = debounce(fn, 100);
+
+    const result = await debounced.flush();
+
+    expect(result).toBeUndefined();
+    expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+describe('createRequestGuard()', () => {
+  test('each request gets a distinct, increasing id', () => {
+    const guard = createRequestGuard();
+
+    expect(guard.next()).toBe(1);
+    expect(guard.next()).toBe(2);
+    expect(guard.next()).toBe(3);
+  });
+
+  test('only the most recently issued id is reported as latest', () => {
+    const guard = createRequestGuard();
+
+    const first = guard.next();
+    const second = guard.next();
+
+    expect(guard.isLatest(first)).toBe(false);
+    expect(guard.isLatest(second)).toBe(true);
+  });
+
+  test('an id issued before any request exists is never latest', () => {
+    const guard = createRequestGuard();
+
+    expect(guard.isLatest(1)).toBe(false);
+
+    guard.next();
+
+    expect(guard.isLatest(1)).toBe(true);
   });
 });
 

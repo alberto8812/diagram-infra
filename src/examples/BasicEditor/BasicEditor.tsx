@@ -27,6 +27,7 @@ import {
   createDiagram,
   duplicateDiagram,
   debounce,
+  createRequestGuard,
   isValidDiagramName,
   DEFAULT_DIAGRAM_NAME,
   DiagramApiError,
@@ -153,14 +154,46 @@ export const BasicEditor = () => {
   // debounced function (and its pending timer) on every switch.
   const currentNameRef = useRef(diagramName);
 
+  // The most recently started save, whether triggered by the debounce timer
+  // or by flush(). flush() only resolves a call it actually triggers; a call
+  // the timer already started earlier (and is still in flight, e.g. waiting
+  // on the PUT) leaves nothing pending for flush() to find. Tracking it here
+  // lets callers wait for that in-flight save too, not just a pending one.
+  const pendingSaveRef = useRef<Promise<void>>(Promise.resolve());
+
   // A single debounced save for the component's lifetime. onModelUpdated
   // fires on every model change, including each frame of a drag, so the
   // write is debounced rather than issued per event.
   const debouncedSave = useMemo(() => {
     return debounce((model: Model) => {
-      saveDiagram(currentNameRef.current, model);
+      const savePromise = saveDiagram(currentNameRef.current, model);
+      pendingSaveRef.current = savePromise;
+      return savePromise;
     }, SAVE_DEBOUNCE_MS);
   }, []);
+
+  // Ensures the save for the diagram currently being edited has actually
+  // landed (or failed) before moving on, covering both a debounced call
+  // still waiting out its timer and one already in flight. saveDiagram()
+  // never rejects (it already falls back to localStorage on its own), but
+  // the catch is kept so a future change there can't wedge switching.
+  const flushPendingSave = useCallback(async () => {
+    try {
+      await debouncedSave.flush();
+    } catch (err) {
+      // Ignored: never let a save failure block switching or duplicating.
+    }
+
+    try {
+      await pendingSaveRef.current;
+    } catch (err) {
+      // Same as above.
+    }
+  }, [debouncedSave]);
+
+  // Guards against overlapping diagram switches: if the user picks A then B
+  // before A's load resolves, only B's result should ever be applied.
+  const switchGuard = useRef(createRequestGuard()).current;
 
   const refreshDiagramList = useCallback(() => {
     listDiagrams().then(setDiagrams);
@@ -188,18 +221,29 @@ export const BasicEditor = () => {
     refreshDiagramList();
   }, [refreshDiagramList]);
 
-  // Switches the diagram being edited. The pending debounced save for the
-  // diagram being left is flushed FIRST, synchronously, before
-  // currentNameRef (or any state) changes — otherwise a save already
-  // in flight when the user switches would land under the new name instead
-  // of the one it was made for.
+  // Switches the diagram being edited. The pending (or in-flight) save for
+  // the diagram being left is flushed and AWAITED first, before
+  // currentNameRef (or any state) changes — otherwise a save still landing
+  // when the user switches away could apply under the new name, or a switch
+  // straight back could GET stale content that hadn't been written yet.
+  //
+  // Overlapping switches (A then B before A's load resolves) are guarded by
+  // a request token: only the call that is still the latest one when its
+  // await resumes is allowed to apply its result, so the last *requested*
+  // switch always wins rather than the last to *resolve*.
   const switchDiagram = useCallback(
     async (name: string) => {
-      debouncedSave.flush();
+      const requestId = switchGuard.next();
+
+      await flushPendingSave();
+
+      if (!switchGuard.isLatest(requestId)) return;
 
       setIsLoading(true);
 
       const data = await loadDiagram(name, icons);
+
+      if (!switchGuard.isLatest(requestId)) return;
 
       currentNameRef.current = name;
       setDiagramName(name);
@@ -207,7 +251,7 @@ export const BasicEditor = () => {
       setRestored(data);
       setIsLoading(false);
     },
-    [debouncedSave]
+    [flushPendingSave, switchGuard]
   );
 
   const selectOptions = useMemo(() => {
@@ -222,6 +266,10 @@ export const BasicEditor = () => {
     if (dialogMode === 'new') {
       await createDiagram(name);
     } else {
+      // Duplicate reads the source diagram server-side, so the pending (or
+      // in-flight) save for it must land first — otherwise it copies
+      // whatever was last written instead of what's on screen.
+      await flushPendingSave();
       await duplicateDiagram(diagramName, name);
     }
 

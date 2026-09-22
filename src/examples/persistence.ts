@@ -249,7 +249,10 @@ export const duplicateDiagram = async (
 export interface Debounced<T extends (...args: never[]) => unknown> {
   (...args: Parameters<T>): void;
   cancel: () => void;
-  flush: () => void;
+  // Resolves once the flushed call (if any) settles, so callers can await
+  // the save it triggers instead of racing it. Resolves immediately with
+  // `undefined` when nothing was pending.
+  flush: () => Promise<Awaited<ReturnType<T>> | undefined>;
 }
 
 export const debounce = <T extends (...args: never[]) => unknown>(
@@ -283,13 +286,43 @@ export const debounce = <T extends (...args: never[]) => unknown>(
 
   // Runs a pending call immediately (if any) instead of waiting out the
   // timer, then cancels it. Used when switching diagrams: the pending save
-  // for the diagram being left must land before it is abandoned.
+  // for the diagram being left must land before it is abandoned. Returns a
+  // promise for that call so callers can await it rather than assuming it
+  // has already landed by the time flush() returns.
   debounced.flush = () => {
     const runArgs = pendingArgs;
     clear();
     pendingArgs = undefined;
-    if (runArgs) fn(...runArgs);
+    if (runArgs) {
+      return Promise.resolve(fn(...runArgs)) as Promise<
+        Awaited<ReturnType<T>> | undefined
+      >;
+    }
+    return Promise.resolve(undefined);
   };
 
   return debounced;
+};
+
+// Hands out monotonically increasing request ids and reports whether one is
+// still the most recent. Used so that overlapping async operations (e.g. two
+// diagram switches started in quick succession) can tell whether their own
+// result is still the one that should be applied, and drop it otherwise.
+export interface RequestGuard {
+  next: () => number;
+  isLatest: (id: number) => boolean;
+}
+
+export const createRequestGuard = (): RequestGuard => {
+  let current = 0;
+
+  return {
+    next: () => {
+      current += 1;
+      return current;
+    },
+    isLatest: (id: number) => {
+      return id === current;
+    }
+  };
 };
