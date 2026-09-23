@@ -108,8 +108,9 @@ describe('useCurrentDiagram()', () => {
     expect(result.current.initialData.fitToView).toBe(true);
   });
 
-  test('falls back to the bundled example when loadDiagram rejects, never stranding the caller loading forever', async () => {
+  test('falls back to the bundled example when loadDiagram rejects and there is no local copy, never stranding the caller loading forever', async () => {
     mockLoadDiagram.mockRejectedValue(new Error('unexpected failure'));
+    mockLoadLocalDiagram.mockReturnValue(null);
 
     const { result } = renderHook(() => {
       return useCurrentDiagram();
@@ -120,6 +121,30 @@ describe('useCurrentDiagram()', () => {
     });
 
     expect(result.current.initialData.title).toBe(initialData.title);
+  });
+
+  // The two failure paths have to recover the same way. loadDiagram can break
+  // before it ever reaches its own localStorage fallback, and a rejection that
+  // dropped the user to the bundled example while their diagram sat in local
+  // storage would be the very defect the timeout path was just fixed for.
+  test('recovers the local copy when loadDiagram rejects, matching the timeout path', async () => {
+    mockLoadDiagram.mockRejectedValue(new Error('unexpected failure'));
+    mockLoadLocalDiagram.mockReturnValue(restoredDiagram);
+
+    const { result } = renderHook(() => {
+      return useCurrentDiagram();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(mockLoadLocalDiagram).toHaveBeenCalledWith(
+      'infra',
+      expect.anything()
+    );
+    expect(result.current.initialData.title).toBe('Restored diagram');
+    expect(result.current.initialData.fitToView).toBe(true);
   });
 
   test('gives up after LOAD_TIMEOUT_MS and shows the example when loadDiagram never settles', async () => {

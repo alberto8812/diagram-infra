@@ -73,10 +73,15 @@ export const useCurrentDiagram = (): UseCurrentDiagramResult => {
         setRestored(data);
       })
       .catch(() => {
+        if (cancelled) return;
+
         // loadDiagram falls back to localStorage and returns null rather than
-        // rejecting, so this only fires if it breaks unexpectedly. Leaving
-        // isLoading true would strand these modes on a blank screen forever,
-        // so fall through to the example instead.
+        // rejecting, so this only fires if it breaks unexpectedly — possibly
+        // before it ever reached that fallback. So try the local copy here
+        // for the same reason the timeout does: a broken endpoint should not
+        // make the user's own diagram look lost. Reading it is synchronous
+        // and cannot throw, so the finally below still clears isLoading.
+        setRestored(loadLocalDiagram(name, icons));
       })
       .finally(() => {
         if (cancelled) return;
