@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { InitialData } from 'src/Isoflow';
 import { initialData, icons } from './initialData';
-import { loadDiagram, readStoredDiagramName } from './persistence';
+import {
+  loadDiagram,
+  loadLocalDiagram,
+  readStoredDiagramName
+} from './persistence';
 
 // How long to wait for the saved diagram before showing the example instead.
 // Generous on purpose: this only has to beat a request that will never
@@ -34,6 +38,7 @@ export const useCurrentDiagram = (): UseCurrentDiagramResult => {
     // promise could still apply its result. A local flag belongs to its own
     // run and cannot be reset by another.
     let cancelled = false;
+    const name = readStoredDiagramName();
 
     // A request that never settles would leave these modes blank for good,
     // which the catch below cannot cover: a hung fetch neither resolves nor
@@ -50,20 +55,33 @@ export const useCurrentDiagram = (): UseCurrentDiagramResult => {
       if (cancelled) return;
 
       cancelled = true;
+
+      // The endpoint never answered, so loadDiagram()'s own localStorage
+      // fallback can never run — that fallback only fires once its fetch
+      // settles, and a hung request neither resolves nor rejects. Reach for
+      // the local copy directly here instead, so a slow or dead dev server
+      // does not make the user's own diagram look lost. setRestored(null)
+      // is safe: the hook falls back to the bundled example below.
+      setRestored(loadLocalDiagram(name, icons));
       setIsLoading(false);
     }, LOAD_TIMEOUT_MS);
 
-    loadDiagram(readStoredDiagramName(), icons)
+    loadDiagram(name, icons)
       .then((data) => {
         if (cancelled) return;
 
         setRestored(data);
       })
       .catch(() => {
+        if (cancelled) return;
+
         // loadDiagram falls back to localStorage and returns null rather than
-        // rejecting, so this only fires if it breaks unexpectedly. Leaving
-        // isLoading true would strand these modes on a blank screen forever,
-        // so fall through to the example instead.
+        // rejecting, so this only fires if it breaks unexpectedly — possibly
+        // before it ever reached that fallback. So try the local copy here
+        // for the same reason the timeout does: a broken endpoint should not
+        // make the user's own diagram look lost. Reading it is synchronous
+        // and cannot throw, so the finally below still clears isLoading.
+        setRestored(loadLocalDiagram(name, icons));
       })
       .finally(() => {
         if (cancelled) return;

@@ -13,6 +13,7 @@ import {
   duplicateDiagram,
   saveDiagram,
   loadDiagram,
+  loadLocalDiagram,
   readStoredDiagramName,
   writeStoredDiagramName,
   DiagramApiError
@@ -391,6 +392,125 @@ describe('fetch wrappers', () => {
     const result = await loadDiagram('network', []);
 
     expect(result).toBeNull();
+  });
+
+  // Pins the ordering loadDiagram() must keep: fetch -> only if nothing
+  // usable came back from it, readLocal -> apply the empty-shell rule to
+  // whichever one was found. A model with no items and no views IS something
+  // usable (it is a real response, just an empty one), so it must not be
+  // silently replaced by localStorage even when localStorage holds real data.
+  test('loadDiagram() resolves null for an empty shell from the endpoint, without silently substituting the localStorage copy', async () => {
+    mockFetch(() => {
+      return jsonResponse({ title: 'infra', items: [], views: [], colors: [] });
+    });
+
+    (global as unknown as { window: unknown }).window = {
+      localStorage: {
+        getItem: jest.fn(() => {
+          return JSON.stringify({
+            title: 'local copy',
+            items: [{ id: 'local-item' }],
+            views: [],
+            colors: []
+          });
+        }),
+        setItem: jest.fn()
+      }
+    };
+
+    try {
+      const result = await loadDiagram('infra', []);
+
+      expect(result).toBeNull();
+    } finally {
+      delete (global as unknown as { window?: unknown }).window;
+    }
+  });
+});
+
+describe('loadLocalDiagram()', () => {
+  const mockLocalStorage = (impl: {
+    getItem: (key: string) => string | null;
+  }) => {
+    (global as unknown as { window: unknown }).window = {
+      localStorage: {
+        getItem: jest.fn(impl.getItem)
+      }
+    };
+  };
+
+  afterEach(() => {
+    delete (global as unknown as { window?: unknown }).window;
+  });
+
+  test('returns the local diagram with icons attached when one is stored', () => {
+    mockLocalStorage({
+      getItem: (key) => {
+        if (key !== diagramStorageKey('infra')) return null;
+
+        return JSON.stringify({
+          title: 'infra',
+          items: [{ id: '1' }],
+          views: [],
+          colors: []
+        });
+      }
+    });
+
+    const icons = [{ id: 'icon-1' }] as unknown as Model['icons'];
+    const result = loadLocalDiagram('infra', icons);
+
+    expect(result).toMatchObject({ title: 'infra', items: [{ id: '1' }] });
+    expect(result?.icons).toBe(icons);
+  });
+
+  test('returns null when nothing is stored locally', () => {
+    mockLocalStorage({
+      getItem: () => {
+        return null;
+      }
+    });
+
+    expect(loadLocalDiagram('infra', [])).toBeNull();
+  });
+
+  test('returns null for a stored empty shell (no items, no views)', () => {
+    mockLocalStorage({
+      getItem: (key) => {
+        if (key !== diagramStorageKey('infra')) return null;
+
+        return JSON.stringify({
+          title: 'infra',
+          items: [],
+          views: [],
+          colors: []
+        });
+      }
+    });
+
+    expect(loadLocalDiagram('infra', [])).toBeNull();
+  });
+
+  test('returns null when the stored value is corrupt JSON', () => {
+    mockLocalStorage({
+      getItem: (key) => {
+        if (key !== diagramStorageKey('infra')) return null;
+
+        return '{not valid json';
+      }
+    });
+
+    expect(loadLocalDiagram('infra', [])).toBeNull();
+  });
+
+  test('returns null when localStorage throws', () => {
+    mockLocalStorage({
+      getItem: () => {
+        throw new Error('blocked storage');
+      }
+    });
+
+    expect(loadLocalDiagram('infra', [])).toBeNull();
   });
 });
 
