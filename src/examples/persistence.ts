@@ -194,6 +194,22 @@ export const saveDiagram = async (name: string, model: Model) => {
   }
 };
 
+// Shared tail for both loadDiagram() and loadLocalDiagram(): a saved file
+// with no items and no views is an empty shell, treated as absent so the
+// caller gets the example instead of a blank canvas. Icons are re-attached
+// here rather than by each caller so the rule and the shape it returns can
+// never drift apart.
+const withIconsUnlessEmptyShell = (
+  stored: StoredModel | null,
+  icons: Icons
+): InitialData | null => {
+  if (!stored) return null;
+
+  if (!stored.items?.length && !stored.views?.length) return null;
+
+  return { ...stored, icons } as InitialData;
+};
+
 export const loadDiagram = async (
   name: string,
   icons: Icons
@@ -214,13 +230,21 @@ export const loadDiagram = async (
     stored = readLocal(name);
   }
 
-  if (!stored) return null;
+  return withIconsUnlessEmptyShell(stored, icons);
+};
 
-  // A saved file with no items and no views is an empty shell; treat it as absent
-  // so the user gets the example instead of a blank canvas.
-  if (!stored.items?.length && !stored.views?.length) return null;
-
-  return { ...stored, icons } as InitialData;
+// Synchronous counterpart to loadDiagram(), reading only the local copy.
+// Used by useCurrentDiagram.ts when the dev server endpoint hangs instead of
+// settling: loadDiagram()'s own localStorage fallback only runs once its
+// fetch settles (resolves or rejects), so a request that never answers can
+// never reach it. This lets a caller that has already given up on the fetch
+// still recover the user's own diagram instead of showing the bundled
+// example.
+export const loadLocalDiagram = (
+  name: string,
+  icons: Icons
+): InitialData | null => {
+  return withIconsUnlessEmptyShell(readLocal(name), icons);
 };
 
 // Creates a diagram server-side — empty, or seeded with `model` in the same

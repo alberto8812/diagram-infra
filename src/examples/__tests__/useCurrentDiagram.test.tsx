@@ -10,20 +10,28 @@ import * as React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { InitialData } from 'src/Isoflow';
 import { useCurrentDiagram } from '../useCurrentDiagram';
-import { loadDiagram, readStoredDiagramName } from '../persistence';
+import {
+  loadDiagram,
+  loadLocalDiagram,
+  readStoredDiagramName
+} from '../persistence';
 import { initialData } from '../initialData';
 
-// The hook only calls these two, so mocking the module (rather than fetch and
-// localStorage, as persistence.test.ts does for persistence.ts itself) keeps
-// this suite about the hook's own load/timeout/cancellation behaviour.
+// The hook only calls these three, so mocking the module (rather than fetch
+// and localStorage, as persistence.test.ts does for persistence.ts itself)
+// keeps this suite about the hook's own load/timeout/cancellation behaviour.
 jest.mock('../persistence', () => {
   return {
     loadDiagram: jest.fn(),
+    loadLocalDiagram: jest.fn(),
     readStoredDiagramName: jest.fn()
   };
 });
 
 const mockLoadDiagram = loadDiagram as jest.MockedFunction<typeof loadDiagram>;
+const mockLoadLocalDiagram = loadLocalDiagram as jest.MockedFunction<
+  typeof loadLocalDiagram
+>;
 const mockReadStoredDiagramName = readStoredDiagramName as jest.MockedFunction<
   typeof readStoredDiagramName
 >;
@@ -42,6 +50,11 @@ const restoredDiagram = {
 describe('useCurrentDiagram()', () => {
   beforeEach(() => {
     mockReadStoredDiagramName.mockReturnValue('infra');
+    // Explicit default so a test that forgets to stub it stays honest about
+    // "no local copy" instead of silently getting `undefined`, which would
+    // make `restored ?? initialData` fall back to the example for the wrong
+    // reason.
+    mockLoadLocalDiagram.mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -119,6 +132,47 @@ describe('useCurrentDiagram()', () => {
     });
 
     expect(result.current.isLoading).toBe(true);
+
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.initialData.title).toBe(initialData.title);
+  });
+
+  test('falls back to the local copy when the timeout fires and one exists, instead of the bundled example', () => {
+    jest.useFakeTimers();
+    // Never resolves or rejects within this test.
+    mockLoadDiagram.mockReturnValue(new Promise<InitialData | null>(() => {}));
+    mockLoadLocalDiagram.mockReturnValue(restoredDiagram);
+
+    const { result } = renderHook(() => {
+      return useCurrentDiagram();
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    expect(mockLoadLocalDiagram).toHaveBeenCalledWith(
+      'infra',
+      expect.anything()
+    );
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.initialData.title).toBe('Restored diagram');
+    expect(result.current.initialData.items).toEqual([{ id: 'restored-item' }]);
+  });
+
+  test('falls back to the bundled example when the timeout fires and there is no local copy', () => {
+    jest.useFakeTimers();
+    // Never resolves or rejects within this test.
+    mockLoadDiagram.mockReturnValue(new Promise<InitialData | null>(() => {}));
+    mockLoadLocalDiagram.mockReturnValue(null);
+
+    const { result } = renderHook(() => {
+      return useCurrentDiagram();
+    });
 
     act(() => {
       jest.advanceTimersByTime(5000);
