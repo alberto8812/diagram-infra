@@ -130,6 +130,104 @@ describe('flowPlaybackReducer() works correctly', () => {
     expect(next).toBe(idleState);
   });
 
+  test('PLAY with a non-empty active set leaves the active set alone', () => {
+    const state: FlowPlayback = {
+      ...idleState,
+      flowId: 'flow1',
+      activeStepIds: ['step1'],
+      history: [['step0']]
+    };
+
+    const next = flowPlaybackReducer(state, { type: 'PLAY' }, listFlow);
+
+    expect(next).toStrictEqual({ ...state, status: 'PLAYING' });
+  });
+
+  test('PLAY with no flow selected is still a no-op', () => {
+    const next = flowPlaybackReducer(idleState, { type: 'PLAY' }, undefined);
+
+    expect(next).toBe(idleState);
+  });
+
+  test('PLAY on a flow with no steps is still a no-op', () => {
+    const emptyFlow: Flow = { id: 'flow1', name: 'Empty flow', steps: [] };
+    const state: FlowPlayback = { ...idleState, flowId: 'flow1' };
+
+    const next = flowPlaybackReducer(state, { type: 'PLAY' }, emptyFlow);
+
+    expect(next).toBe(state);
+  });
+
+  test("PLAY after a list flow's run finishes restarts it from the entry points, PLAYING", () => {
+    // Run finished: ADVANCE emptied activeStepIds, status went IDLE. History
+    // carries the finished run's snapshots.
+    const finished: FlowPlayback = {
+      flowId: 'flow1',
+      status: 'IDLE',
+      activeStepIds: [],
+      stepIndex: 2,
+      speed: 1,
+      history: [['step0'], ['step1']]
+    };
+
+    const next = flowPlaybackReducer(finished, { type: 'PLAY' }, listFlow);
+
+    expect(next).toStrictEqual({
+      flowId: 'flow1',
+      status: 'PLAYING',
+      activeStepIds: ['step0'],
+      stepIndex: 0,
+      speed: 1,
+      history: []
+    });
+  });
+
+  test('PLAY after NEXT_STEP moved past the last step restarts it the same way', () => {
+    // NEXT_STEP past the last step: activeStepIds emptied, status PAUSED.
+    const pastEnd: FlowPlayback = {
+      flowId: 'flow1',
+      status: 'PAUSED',
+      activeStepIds: [],
+      stepIndex: 2,
+      speed: 1,
+      history: [['step0'], ['step1'], ['step2']]
+    };
+
+    const next = flowPlaybackReducer(pastEnd, { type: 'PLAY' }, listFlow);
+
+    expect(next).toStrictEqual({
+      flowId: 'flow1',
+      status: 'PLAYING',
+      activeStepIds: ['step0'],
+      stepIndex: 0,
+      speed: 1,
+      history: []
+    });
+  });
+
+  test('the restart clears history, so PREV_STEP right after it does not jump into the finished run', () => {
+    const finished: FlowPlayback = {
+      flowId: 'flow1',
+      status: 'IDLE',
+      activeStepIds: [],
+      stepIndex: 2,
+      speed: 1,
+      history: [['step0'], ['step1']]
+    };
+
+    const restarted = flowPlaybackReducer(finished, { type: 'PLAY' }, listFlow);
+
+    const afterPrev = flowPlaybackReducer(
+      restarted,
+      { type: 'PREV_STEP' },
+      listFlow
+    );
+
+    // No history to pop into, so PREV_STEP is a no-op that only pauses -
+    // it does not jump back into the finished run's ['step1'] snapshot.
+    expect(afterPrev).toStrictEqual({ ...restarted, status: 'PAUSED' });
+  });
+
   test('PAUSE only takes effect while playing', () => {
     const playing: FlowPlayback = { ...idleState, status: 'PLAYING' };
 

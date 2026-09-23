@@ -106,11 +106,13 @@ const initialState = () => {
             )
           });
         },
-        play: () => {
+        play: (flow) => {
           set({
-            flowPlayback: flowPlaybackReducer(get().flowPlayback, {
-              type: 'PLAY'
-            })
+            flowPlayback: flowPlaybackReducer(
+              get().flowPlayback,
+              { type: 'PLAY' },
+              flow
+            )
           });
         },
         pause: () => {

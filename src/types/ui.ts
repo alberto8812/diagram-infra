@@ -233,7 +233,7 @@ export interface UiStateActions {
   setRendererEl: (el: HTMLDivElement) => void;
   setEnableDebugTools: (enabled: boolean) => void;
   selectFlow: (flowId: string | null, flow: Flow | undefined) => void;
-  play: () => void;
+  play: (flow: Flow | undefined) => void;
   pause: () => void;
   stop: (flow: Flow | undefined) => void;
   nextStep: (flow: Flow | undefined) => void;

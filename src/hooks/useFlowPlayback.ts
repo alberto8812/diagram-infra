@@ -91,8 +91,8 @@ export const useFlowPlayback = () => {
   );
 
   const play = useCallback(() => {
-    actions.play();
-  }, [actions]);
+    actions.play(flow);
+  }, [actions, flow]);
 
   const pause = useCallback(() => {
     actions.pause();

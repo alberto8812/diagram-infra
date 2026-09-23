@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo } from 'react';
-import { FlowStep } from 'src/types';
+import { useEffect, useMemo } from 'react';
 import { useModelStore } from 'src/stores/modelStore';
 import { useUiStateStore } from 'src/stores/uiStateStore';
-import { findFlowStepConnector } from 'src/utils';
+import { resolveActiveConnectorStepIds } from 'src/utils';
 
 // Reconciles flow playback with the model whenever the model changes
 // underneath it (e.g. the selected flow, or an active step or its
@@ -43,28 +42,21 @@ export const FlowPlaybackReconciler = () => {
     return flow?.steps ?? [];
   }, [flow]);
 
-  const findConnector = useCallback(
-    (step: FlowStep | undefined) => {
-      return findFlowStepConnector(views, step);
-    },
-    [views]
-  );
-
   // Every currently active step id whose step still exists in the flow and
   // whose connector still resolves. Precise per id (unlike the pre-T2b
   // single stepIndex-derived boolean), which matters now that a graph flow
-  // can have more than one step active at once.
+  // can have more than one step active at once. The filter itself is
+  // resolveActiveConnectorStepIds (src/utils/flow.ts), pure and unit tested
+  // there.
   const activeConnectorStepIds = useMemo(() => {
     if (flow === undefined) return [];
 
-    return flowPlayback.activeStepIds.filter((id) => {
-      const step = steps.find((_step) => {
-        return _step.id === id;
-      });
-
-      return step !== undefined && findConnector(step) !== undefined;
-    });
-  }, [flow, steps, flowPlayback.activeStepIds, findConnector]);
+    return resolveActiveConnectorStepIds(
+      steps,
+      views,
+      flowPlayback.activeStepIds
+    );
+  }, [flow, steps, views, flowPlayback.activeStepIds]);
 
   useEffect(() => {
     if (flowPlayback.flowId === null) return;

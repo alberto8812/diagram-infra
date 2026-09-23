@@ -5,6 +5,7 @@ import {
   buildReturnPathSteps,
   getMissingReturnPathSteps,
   getPacketLabel,
+  resolveActiveConnectorStepIds,
   resolveNextSteps,
   getFlowStartSteps
 } from '../flow';
@@ -41,6 +42,53 @@ describe('findFlowStepConnector() works correctly', () => {
     };
 
     expect(findFlowStepConnector(views, step)).toBeUndefined();
+  });
+});
+
+describe('resolveActiveConnectorStepIds() works correctly', () => {
+  const conn1 = connector('conn1', []);
+  const conn2 = connector('conn2', []);
+  const views = [
+    { id: 'view1', name: 'View 1', connectors: [conn1, conn2] }
+  ] as unknown as View[];
+
+  const step1: FlowStep = {
+    id: 's1',
+    connectorId: 'conn1',
+    direction: 'REQUEST'
+  };
+  const step2: FlowStep = {
+    id: 's2',
+    connectorId: 'conn2',
+    direction: 'REQUEST'
+  };
+  const step3: FlowStep = {
+    id: 's3',
+    connectorId: 'missing-connector',
+    direction: 'REQUEST'
+  };
+  const steps = [step1, step2, step3];
+
+  test('drops an active id whose step was deleted from the flow', () => {
+    expect(
+      resolveActiveConnectorStepIds(steps, views, ['s1', 'deleted-step'])
+    ).toStrictEqual(['s1']);
+  });
+
+  test('drops an active id whose connector no longer resolves in any view', () => {
+    expect(resolveActiveConnectorStepIds(steps, views, ['s3'])).toStrictEqual(
+      []
+    );
+  });
+
+  test('keeps ids that still resolve, in their original order', () => {
+    expect(
+      resolveActiveConnectorStepIds(steps, views, ['s2', 's1'])
+    ).toStrictEqual(['s2', 's1']);
+  });
+
+  test('returns an empty result for an empty active list', () => {
+    expect(resolveActiveConnectorStepIds(steps, views, [])).toStrictEqual([]);
   });
 });
 

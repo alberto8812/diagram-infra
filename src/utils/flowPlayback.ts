@@ -236,10 +236,46 @@ export const flowPlaybackReducer = (
       };
     }
 
-    case 'PLAY':
-      if (state.activeStepIds.length === 0) return state;
+    case 'PLAY': {
+      if (state.activeStepIds.length > 0) {
+        return { ...state, status: 'PLAYING' };
+      }
 
-      return { ...state, status: 'PLAYING' };
+      // The active set is empty either because the run finished (ADVANCE
+      // emptied it) or because NEXT_STEP stepped past the last step. Restart
+      // from the flow's entry points rather than staying a dead button: this
+      // is a deliberate improvement over the pre-T2 behaviour, which had no
+      // notion of "the run finished" and so replayed only the last step
+      // (stepIndex was simply clamped back into range). Restarting from the
+      // entry points is what "play again" means for a flow that can now have
+      // several entry points and several steps in flight at once, and it
+      // matches STOP/RECONCILE's own notion of "the beginning". The history
+      // is cleared too - the restarted run is a new run, and leaving stale
+      // snapshots around would let PREV_STEP jump into the previous one.
+      // Restarting only makes sense for a flow that is actually selected.
+      // Without this, a PLAY carrying a flow while `flowId` is still null
+      // would start animating steps that belong to no selected flow, leaving
+      // `flowId: null` next to a non-empty active set — a state nothing else
+      // in the reducer can reach or reconcile.
+      if (state.flowId === null) return state;
+
+      const startSteps = flow ? getFlowStartSteps(flow) : [];
+      const activeStepIds = startSteps.map((step) => {
+        return step.id;
+      });
+
+      // No flow, or a flow with no steps: still nothing to play, same as
+      // before T2.
+      if (activeStepIds.length === 0) return state;
+
+      return {
+        ...state,
+        status: 'PLAYING',
+        activeStepIds,
+        stepIndex: stepIndexOf(flow, activeStepIds[0]),
+        history: []
+      };
+    }
 
     case 'PAUSE':
       if (state.status !== 'PLAYING') return state;

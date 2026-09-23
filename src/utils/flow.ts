@@ -27,6 +27,32 @@ export const findFlowStepConnector = (
   });
 };
 
+// Filters an active step-id list down to the ones that are still real: the
+// step still exists in `steps` and its connector still resolves in `views`.
+// This is the pure core of FlowPlaybackReconciler's activeConnectorStepIds
+// (the RECONCILE input flowPlaybackReducer trusts to say which active steps
+// survived a model change - see src/utils/flowPlayback.ts). It belongs here,
+// next to findFlowStepConnector which it already uses, rather than inside
+// the component: it touches no DOM, so it can be unit tested directly even
+// though the component itself can't be (jest's testEnvironment is "node",
+// no jsdom). Order is preserved - `activeStepIds`' order, not `steps`' -
+// since that's the order the caller already relies on.
+export const resolveActiveConnectorStepIds = (
+  steps: FlowStep[],
+  views: View[],
+  activeStepIds: string[]
+): string[] => {
+  return activeStepIds.filter((id) => {
+    const step = steps.find((_step) => {
+      return _step.id === id;
+    });
+
+    return (
+      step !== undefined && findFlowStepConnector(views, step) !== undefined
+    );
+  });
+};
+
 // Labels a connector by its endpoint item names ("Item A -> Item B") for the
 // flow editor's connector picker. Anchors that reference a tile rather than
 // an item (or an item that no longer resolves) fall back to "?".
