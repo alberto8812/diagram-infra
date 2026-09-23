@@ -74,12 +74,18 @@ twice, then reconciling two different notions of "next".
   inside an unreachable group, because the step the author wrote first is the
   only record the model keeps of where they meant to begin.
 
-## Known gap carried into T3
+## Known gap carried into T3 — CLOSED by T3
 The reducer ignores an arrival for a step that is not active, but the hook’s
-`advance()` sends `activeSteps[0]` rather than the step whose animation
-actually finished, so the guard never fires through the running app. The same
-skip existed before this feature, so it is not a regression — but T3 is what
-makes it real, since that is where the renderer learns which packet arrived.
+`advance()` sent `activeSteps[0]` rather than the step whose animation
+actually finished, so the guard never fired through the running app. The same
+skip existed before this feature, so it was not a regression — but T3 is what
+made it real, since that is where the renderer learns which packet arrived.
+
+Closed in `b8c200a`: `advance(stepId)` now takes the arriving step's id, and
+`Connector` passes the id of the packet whose tween completed. The reducer's
+no-op on a stale id is now reachable — it covers a step reconciled away
+between the packet arriving and the dispatch — so the guard was kept rather
+than duplicated in the hook.
 
 ## Second open question for T4
 What does `outcome: FAILURE` mark: the step that failed, or every step on the
@@ -120,9 +126,23 @@ its own pull request against `main`, in order, merged before the next one starts
 - [x] T2 Reducer: `FlowPlayback` moves from `stepIndex` to an active step-id set,
       advancing through the T1 helper. Extend `flowPlayback.test.ts`; every
       existing assertion must still hold for linear flows.
-- [ ] T3 Hook and renderer: `useFlowPlayback` exposes the active steps, and
+- [x] T3 Hook and renderer: `useFlowPlayback` exposes the active steps, and
       `Connector` renders a packet per active step on its own connector instead of
-      gating on a single current step.
+      gating on a single current step. Commit `b8c200a`, branch
+      `feat/flow-graph-t3-renderer`. New pure helper
+      `groupActiveStepsByConnectorId` in `src/utils/flow.ts` (6 tests, both
+      mutation-verified: dropping the connector-existence check fails 1,
+      `push` to `unshift` fails 2). `advance(stepId)` now takes the arriving
+      step, closing the gap below. `ConnectorPacket` unchanged — `Connector`
+      wires `onArrive` per packet, so each closure carries its own step id.
+      Checks observed: `npm test` 565/565 in 50 suites, `npx tsc --noEmit`
+      clean, `npm run lint` at the pre-existing 5 problems.
+      Not covered: no component-level test renders `Connector`, so "N packets
+      actually appear" is verified by reading the code, not by a test. The
+      repo has no jsdom infrastructure for this component (global
+      `testEnvironment: "node"`; only `src/examples/__tests__/
+      useCurrentDiagram.test.tsx` opts in per-file). Same gap as
+      `R3-mode-gating-untested` / `R3-readonly-gating-untested`.
 - [ ] T4 Failure rendering: a step with `outcome: 'FAILURE'` renders its packet
       distinctly, reusing the existing palette rather than a hardcoded colour.
 - [ ] T5 Editor UI: author successors and outcome in `FlowEditorDialog`, keeping
@@ -255,8 +275,12 @@ its own pull request against `main`, in order, merged before the next one starts
 - Scope chosen by the user: graph model, not a narrow failure-only cut.
 
 ## Next step
-T2: move the playback cursor from `stepIndex` to an active step-id set,
-advancing through `resolveNextSteps`.
+T4, but it is BLOCKED on the two open questions above — `next` forks rather
+than chooses, and `outcome: FAILURE` marks either the failed step or the whole
+failure path. Both are user decisions and both must be settled before T4 can
+be specified, because T4 is the task that renders `outcome`.
+
+T5 is not blocked and could run first if T4 stays undecided.
 
 ## Evidence
 Measured against the final state of this branch (T1 through T2f), not an
