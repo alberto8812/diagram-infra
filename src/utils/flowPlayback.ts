@@ -30,9 +30,10 @@ export type FlowPlaybackAction =
       activeConnectorStepIds: string[];
     };
 
-// Kept for src/components/FlowPlaybackReconciler/FlowPlaybackReconciler.tsx,
-// which still clamps a plain index (it predates T2's active-step-id set and
-// is out of scope for this change).
+// No longer used by FlowPlaybackReconciler.tsx as of T2b - it now reconciles
+// the whole activeStepIds set against a real Flow instead of clamping a
+// single legacy index (see the RECONCILE case below). Kept as a small,
+// still-tested utility.
 export const clampStepIndex = (stepIndex: number, stepsCount: number) => {
   if (stepsCount <= 0) return 0;
 
@@ -66,6 +67,36 @@ const stepIndexOf = (
   });
 
   return index === -1 ? 0 : index;
+};
+
+// The invariant this whole reducer rests on: whenever the reducer produces
+// an active set (activeStepIds, or a snapshot restored from history), every
+// id in it must resolve to a step of the `flow` it was handed. A stale or
+// foreign id here isn't cosmetic - useFlowPlayback's activeSteps silently
+// drops anything that doesn't resolve, so the id keeps sitting in
+// activeStepIds forever with nothing rendered for it, ADVANCE is never
+// dispatched for it, and playback never leaves PLAYING. Every branch that
+// could hand the caller ids sourced from somewhere other than
+// resolveNextSteps/getFlowStartSteps (a history snapshot, or an
+// approximate "still resolves" list from a caller with a partial view of
+// the model) must run them through this before they become the new active
+// set. Returns [] when there's no flow to resolve against, since nothing
+// can resolve to a flow that doesn't exist.
+const resolveKnownStepIds = (
+  flow: Flow | undefined,
+  stepIds: string[]
+): string[] => {
+  if (!flow) return [];
+
+  const knownIds = new Set(
+    flow.steps.map((step) => {
+      return step.id;
+    })
+  );
+
+  return stepIds.filter((id) => {
+    return knownIds.has(id);
+  });
 };
 
 // Orders a set of step ids the way FlowPlayback.activeStepIds promises to:
@@ -254,20 +285,33 @@ export const flowPlaybackReducer = (
     }
 
     case 'PREV_STEP': {
-      if (state.history.length === 0) {
-        return { ...state, status: 'PAUSED' };
+      // A history snapshot was captured against whatever flow was selected
+      // when it was pushed, which may not be `flow` any more (the flow was
+      // edited, or playback was switched to a different flow and back). Pop
+      // snapshots until one has a surviving step (resolveKnownStepIds), so
+      // a snapshot that no longer resolves at all is skipped rather than
+      // restored verbatim - restoring it would violate the invariant above
+      // resolveKnownStepIds and could leave playback stuck. If the history
+      // runs out before that happens, it's a no-op that pauses, same as
+      // when the history was empty to begin with.
+      const history = [...state.history];
+
+      while (history.length > 0) {
+        const snapshot = history.pop() as string[];
+        const survivingStepIds = resolveKnownStepIds(flow, snapshot);
+
+        if (survivingStepIds.length > 0) {
+          return {
+            ...state,
+            status: 'PAUSED',
+            activeStepIds: survivingStepIds,
+            stepIndex: stepIndexOf(flow, survivingStepIds[0]),
+            history
+          };
+        }
       }
 
-      const history = [...state.history];
-      const previousActiveStepIds = history.pop() as string[];
-
-      return {
-        ...state,
-        status: 'PAUSED',
-        activeStepIds: previousActiveStepIds,
-        stepIndex: stepIndexOf(flow, previousActiveStepIds[0]),
-        history
-      };
+      return { ...state, status: 'PAUSED' };
     }
 
     case 'SET_SPEED':
@@ -277,6 +321,17 @@ export const flowPlaybackReducer = (
       };
 
     case 'ADVANCE': {
+      // An arrival is only meaningful for a step that's currently active.
+      // Without this check, a stale arrival (an animation finishing after
+      // the user pressed Next) or a duplicate delivery of the same arrival
+      // would run advanceActiveSteps for a step that already left the
+      // active set, starting its successors a second time - see the module
+      // comment above resolveKnownStepIds for why that's worse than a
+      // no-op.
+      if (!state.activeStepIds.includes(action.stepId)) {
+        return state;
+      }
+
       if (!flow || flow.steps.length === 0) {
         return {
           ...state,
@@ -304,9 +359,11 @@ export const flowPlaybackReducer = (
     }
 
     // Reconciles playback with the model after it changes underneath it
-    // (src/hooks/useFlowPlayback.ts and
-    // src/components/FlowPlaybackReconciler/FlowPlaybackReconciler.tsx
-    // trigger this). Never touches an unselected playback (flowId === null).
+    // (src/components/FlowPlaybackReconciler/FlowPlaybackReconciler.tsx
+    // triggers this, passing the Flow it resolved so a step deleted from
+    // the model can be dropped and, if needed, entry points can be
+    // re-resolved below). Never touches an unselected playback
+    // (flowId === null).
     case 'RECONCILE': {
       if (state.flowId === null) return state;
 
@@ -335,16 +392,17 @@ export const flowPlaybackReducer = (
         };
       }
 
-      const stepsById = flow
-        ? new Map(
-            flow.steps.map((step) => {
-              return [step.id, step];
-            })
-          )
-        : null;
+      // resolveKnownStepIds enforces the invariant above it: a step no
+      // longer in `flow` (deleted from the model) never survives, even if
+      // the caller's activeConnectorStepIds still lists it. Without a Flow
+      // to check against, step existence can't be judged, so it's left to
+      // activeConnectorStepIds alone (the best this call site can do).
+      const knownStepIds = new Set(
+        resolveKnownStepIds(flow, state.activeStepIds)
+      );
 
       const survivingStepIds = state.activeStepIds.filter((id) => {
-        const stepStillExists = stepsById ? stepsById.has(id) : true;
+        const stepStillExists = flow ? knownStepIds.has(id) : true;
         const connectorStillExists = action.activeConnectorStepIds.includes(id);
 
         return stepStillExists && connectorStillExists;
@@ -370,10 +428,10 @@ export const flowPlaybackReducer = (
       // Every active step was dropped. Re-seed from the flow's entry points
       // when we can resolve them; the flow is still selected, so this is
       // "restart from the beginning", the same as STOP, rather than losing
-      // the selection outright. Without a Flow to resolve entry points from
-      // (the legacy FlowPlaybackReconciler.tsx call path - see the
-      // `reconcile` action in src/stores/uiStateStore.tsx) this can only go
-      // IDLE and freeze `stepIndex` at its last value, same as before T2.
+      // the selection outright. Since T2b, FlowPlaybackReconciler.tsx always
+      // resolves and hands us a Flow when one is selected, so this only
+      // falls back to freezing `stepIndex` at its last value (same as
+      // before T2) for a caller with no Flow to give us at all.
       const startSteps = flow ? getFlowStartSteps(flow) : [];
       const activeStepIds = startSteps.map((step) => {
         return step.id;

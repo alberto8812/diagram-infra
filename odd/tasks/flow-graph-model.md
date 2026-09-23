@@ -140,6 +140,26 @@ its own pull request against `main`, in order, merged before the next one starts
       Map, since T2 will call this on every playback; and the entry comment
       still carried a paragraph describing the rule T1d replaced, contradicting
       the paragraph below it.
+- [x] T2b Review follow-ups on T2, treated as in-scope defects: one root cause
+      (`flowPlaybackReducer` trusted step ids without checking they still
+      resolve against the flow it was handed) surfacing as three symptoms.
+      ADVANCE now ignores an arrival for a step that isn't currently active
+      (a stale or duplicate arrival could otherwise restart an already-finished
+      step). PREV_STEP now filters a restored history snapshot against the
+      current flow, skipping snapshots that no longer resolve at all instead
+      of restoring dangling ids, and keeps popping until one survives or the
+      history runs out. RECONCILE's legacy call path (`FlowPlaybackReconciler.tsx`
+      via `uiStateStore.tsx`'s `reconcile` action) now passes the resolved
+      `Flow` through to the reducer, plus a precise per-step
+      `activeConnectorStepIds` list computed against every active step
+      instead of the old single-stepIndex-derived boolean, so a step deleted
+      from the model is dropped and the active set reseeds from
+      `getFlowStartSteps` when it would otherwise empty out while a flow is
+      still selected. All three fixes share one helper, `resolveKnownStepIds`
+      in `src/utils/flowPlayback.ts`, documented as the invariant the reducer
+      rests on. `stepIndex` could not be removed: `FlowPlaybackBar.tsx` (out
+      of scope) still reads it directly for its "Step N / total" label.
+      7 tests added to `flowPlayback.test.ts` (513 to 520).
 
 ## Acceptance criteria
 - An existing flow with no successor data plays exactly as before, step by step.
@@ -159,9 +179,9 @@ T2: move the playback cursor from `stepIndex` to an active step-id set,
 advancing through `resolveNextSteps`.
 
 ## Evidence
-Measured against the final state of this branch (T1 through T2), not an
+Measured against the final state of this branch (T1 through T2b), not an
 intermediate run:
-- `npm test`: 513 tests / 49 suites passing. The baseline on `main` is 480 / 48.
+- `npm test`: 520 tests / 49 suites passing. The baseline on `main` is 480 / 48.
 - `npx tsc --noEmit`: clean.
 - `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
   errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None
@@ -174,3 +194,21 @@ remaining follow-up inline.
 An earlier revision of this section recorded T1's numbers after T1b had already
 changed the behaviour. Verification evidence names the state it was measured
 against, or it is worse than no evidence at all.
+
+## Evidence (T2b)
+Measured against the final state of this branch (T1 through T2b):
+- `npx jest src/utils/__tests__/flowPlayback.test.ts`: 38 tests passing.
+- `npm test`: 520 tests / 49 suites passing (513 / 49 before T2b; 7 tests added,
+  no suite added or removed).
+- `npx tsc --noEmit`: clean.
+- `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
+  errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None
+  added.
+
+Route: delegated direct (writer trigger: touches 4+ files -
+`flowPlayback.ts`, `uiStateStore.tsx`, `FlowPlaybackReconciler.tsx`,
+`types/ui.ts`, plus the test file).
+
+No test was added for `FlowPlaybackReconciler.tsx` itself: `jest.config.js`
+uses `testEnvironment: "node"` (no jsdom), and this project has no existing
+component-render test setup, so a DOM-dependent test would not run.

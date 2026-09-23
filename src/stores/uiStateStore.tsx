@@ -164,36 +164,26 @@ const initialState = () => {
             )
           });
         },
-        // Signature intentionally unchanged from before T2: its only
-        // caller, FlowPlaybackReconciler.tsx, is out of scope for this
-        // change and calls it positionally as
-        // actions.reconcile(stepsCount, flowExists, connectorExists). That
-        // component resolves a single boolean for the one step at its
-        // (legacy) stepIndex cursor, and has no Flow object to hand us - this
-        // store only ever sees UI/playback state, never model data (see
-        // src/stores/modelStore.tsx: a separate per-provider store, not a
-        // reachable singleton). So the plural RECONCILE reducer case is fed
-        // the best approximation this input allows: when the checked
-        // connector is fine, every currently active step is treated as
-        // fine; when it's missing, every currently active step is treated
-        // as missing. That's exactly the old all-or-nothing behavior this
-        // caller has always driven for a single-active-step (list) flow,
-        // and the reducer degrades to it gracefully (see the RECONCILE case
-        // in src/utils/flowPlayback.ts) without a Flow to reseed real entry
-        // points from.
-        reconcile: (stepsCount, flowExists, connectorExists) => {
+        // FlowPlaybackReconciler.tsx now hands us the Flow it resolved plus
+        // the precise per-id active-connector list (T2b): the reducer can
+        // drop a step deleted from the model and reseed from
+        // getFlowStartSteps when the active set would otherwise empty out,
+        // instead of the old all-or-nothing approximation this store had to
+        // fall back to when it couldn't see the model.
+        reconcile: (stepsCount, flowExists, activeConnectorStepIds, flow) => {
           const { flowPlayback } = get();
-          const activeConnectorStepIds = connectorExists
-            ? flowPlayback.activeStepIds
-            : [];
 
           set({
-            flowPlayback: flowPlaybackReducer(flowPlayback, {
-              type: 'RECONCILE',
-              flowExists,
-              stepsCount,
-              activeConnectorStepIds
-            })
+            flowPlayback: flowPlaybackReducer(
+              flowPlayback,
+              {
+                type: 'RECONCILE',
+                flowExists,
+                stepsCount,
+                activeConnectorStepIds
+              },
+              flow
+            )
           });
         },
         setActiveNodePulse: (activeNodePulse) => {

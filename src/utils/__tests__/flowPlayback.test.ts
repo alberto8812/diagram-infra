@@ -1,4 +1,5 @@
 import { Flow, FlowPlayback, FlowStep } from 'src/types';
+import { MAX_FLOW_PLAYBACK_HISTORY } from 'src/config';
 import {
   clampStepIndex,
   getStepDurationMs,
@@ -470,6 +471,122 @@ describe('flowPlaybackReducer() works correctly', () => {
     });
   });
 
+  describe('ADVANCE ignores an arrival that is not currently active', () => {
+    test('a step not in activeStepIds leaves state unchanged, including history', () => {
+      const state: FlowPlayback = {
+        flowId: 'flow1',
+        status: 'PLAYING',
+        activeStepIds: ['step1'],
+        stepIndex: 1,
+        speed: 1,
+        history: [['step0']]
+      };
+
+      const next = flowPlaybackReducer(
+        state,
+        { type: 'ADVANCE', stepId: 'step0' },
+        listFlow
+      );
+
+      expect(next).toBe(state);
+      expect(next.history).toBe(state.history);
+    });
+
+    // A -> B, A -> C, C -> E. Reproduces a stale or duplicate arrival: C
+    // finishes, then finishes again (or its arrival is delivered twice)
+    // after E has already run and left the active set. The second arrival
+    // for C must not restart E.
+    const forkThenBranchFlow: Flow = {
+      id: 'fork-then-branch',
+      name: 'Fork then branch',
+      steps: [
+        buildStep({ id: 'A', next: ['B', 'C'] }),
+        buildStep({ id: 'B', next: [] }),
+        buildStep({ id: 'C', next: ['E'] }),
+        buildStep({ id: 'E', next: [] })
+      ]
+    };
+
+    test('a duplicate arrival does not restart a step that already finished', () => {
+      let state: FlowPlayback = {
+        flowId: 'fork-then-branch',
+        status: 'PLAYING',
+        activeStepIds: ['A'],
+        stepIndex: 0,
+        speed: 1,
+        history: []
+      };
+
+      state = flowPlaybackReducer(
+        state,
+        { type: 'ADVANCE', stepId: 'A' },
+        forkThenBranchFlow
+      );
+      expect(state.activeStepIds).toStrictEqual(['B', 'C']);
+
+      state = flowPlaybackReducer(
+        state,
+        { type: 'ADVANCE', stepId: 'C' },
+        forkThenBranchFlow
+      );
+      expect(state.activeStepIds).toStrictEqual(['B', 'E']);
+
+      state = flowPlaybackReducer(
+        state,
+        { type: 'ADVANCE', stepId: 'E' },
+        forkThenBranchFlow
+      );
+      expect(state.activeStepIds).toStrictEqual(['B']);
+
+      // A stale/duplicate arrival for C: C is not active any more, so this
+      // must be a no-op rather than starting E a second time.
+      const beforeDuplicate = state;
+      state = flowPlaybackReducer(
+        state,
+        { type: 'ADVANCE', stepId: 'C' },
+        forkThenBranchFlow
+      );
+
+      expect(state).toBe(beforeDuplicate);
+      expect(state.activeStepIds).toStrictEqual(['B']);
+    });
+  });
+
+  describe('PREV_STEP skips history snapshots that no longer resolve', () => {
+    test('skips a snapshot whose steps no longer exist and restores the next surviving one', () => {
+      const state: FlowPlayback = {
+        flowId: 'flow1',
+        status: 'PLAYING',
+        activeStepIds: ['step1'],
+        stepIndex: 1,
+        speed: 1,
+        history: [['step0'], ['ghost']]
+      };
+
+      const next = flowPlaybackReducer(state, { type: 'PREV_STEP' }, listFlow);
+
+      expect(next.activeStepIds).toStrictEqual(['step0']);
+      expect(next.stepIndex).toBe(0);
+      expect(next.status).toBe('PAUSED');
+      expect(next.history).toStrictEqual([]);
+    });
+
+    test('is a no-op that pauses when nothing in the history survives', () => {
+      const state: FlowPlayback = {
+        flowId: 'flow1',
+        status: 'PLAYING',
+        activeStepIds: ['step1'],
+        stepIndex: 1,
+        speed: 1,
+        history: [['ghost1'], ['ghost2']]
+      };
+
+      const next = flowPlaybackReducer(state, { type: 'PREV_STEP' }, listFlow);
+
+      expect(next).toStrictEqual({ ...state, status: 'PAUSED' });
+    });
+  });
+
   describe('RECONCILE reconciles playback with a changed model', () => {
     test('is a no-op when no flow is selected', () => {
       const next = flowPlaybackReducer(
@@ -670,5 +787,124 @@ describe('flowPlaybackReducer() works correctly', () => {
 
       expect(next).toBe(playing);
     });
+
+    // A -> B, B -> D (C was deleted from the model entirely, unlike the
+    // "connector vanished" test above where the step is still in the flow).
+    // A caller with an incomplete view of the model (T2b's fix in
+    // src/stores/uiStateStore.tsx / FlowPlaybackReconciler.tsx makes the
+    // real caller precise, but the reducer must not rely on that) might
+    // still list the deleted step's id in activeConnectorStepIds - the
+    // reducer drops it anyway because it no longer resolves against `flow`.
+    const flowAfterStepDeleted: Flow = {
+      id: 'diamond',
+      name: 'Diamond',
+      steps: [
+        buildStep({ id: 'A', next: ['B'] }),
+        buildStep({ id: 'B', next: ['D'] }),
+        buildStep({ id: 'D', next: [] })
+      ]
+    };
+
+    test('drops an active step deleted from the model and keeps the others', () => {
+      const playing: FlowPlayback = {
+        flowId: 'diamond',
+        status: 'PLAYING',
+        activeStepIds: ['B', 'C'],
+        stepIndex: 1,
+        speed: 1,
+        history: [['A']]
+      };
+
+      const next = flowPlaybackReducer(
+        playing,
+        {
+          type: 'RECONCILE',
+          flowExists: true,
+          stepsCount: flowAfterStepDeleted.steps.length,
+          activeConnectorStepIds: ['B', 'C']
+        },
+        flowAfterStepDeleted
+      );
+
+      expect(next.activeStepIds).toStrictEqual(['B']);
+      expect(next.status).toBe('PLAYING');
+    });
+
+    test('reseeds from the entry points when every active step was deleted from the model', () => {
+      const playing: FlowPlayback = {
+        flowId: 'diamond',
+        status: 'PLAYING',
+        activeStepIds: ['C'],
+        stepIndex: 1,
+        speed: 1,
+        history: [['A']]
+      };
+
+      const next = flowPlaybackReducer(
+        playing,
+        {
+          type: 'RECONCILE',
+          flowExists: true,
+          stepsCount: flowAfterStepDeleted.steps.length,
+          activeConnectorStepIds: ['C']
+        },
+        flowAfterStepDeleted
+      );
+
+      expect(next).toStrictEqual({
+        flowId: 'diamond',
+        status: 'IDLE',
+        activeStepIds: ['A'],
+        stepIndex: 0,
+        speed: 1,
+        history: []
+      });
+    });
+  });
+});
+
+describe('flowPlaybackReducer() caps history at MAX_FLOW_PLAYBACK_HISTORY', () => {
+  test('keeps only the newest entries, oldest first', () => {
+    // A 2-step cycle: X -> Y -> X. Cycle-safe traversal (resolveInFlight/
+    // resolveNextSteps) lets forward transitions run indefinitely, which is
+    // what's needed to push past the cap.
+    const cycleFlow: Flow = {
+      id: 'cycle',
+      name: 'Cycle',
+      steps: [
+        buildStep({ id: 'X', next: ['Y'] }),
+        buildStep({ id: 'Y', next: ['X'] })
+      ]
+    };
+
+    let state: FlowPlayback = {
+      flowId: 'cycle',
+      status: 'PLAYING',
+      activeStepIds: ['X'],
+      stepIndex: 0,
+      speed: 1,
+      history: []
+    };
+
+    const totalTransitions = MAX_FLOW_PLAYBACK_HISTORY + 10;
+    const pushedSnapshots: string[][] = [];
+
+    for (let i = 0; i < totalTransitions; i += 1) {
+      pushedSnapshots.push(state.activeStepIds);
+
+      const [arrivedStepId] = state.activeStepIds;
+      state = flowPlaybackReducer(
+        state,
+        { type: 'ADVANCE', stepId: arrivedStepId },
+        cycleFlow
+      );
+    }
+
+    const expectedHistory = pushedSnapshots.slice(
+      pushedSnapshots.length - MAX_FLOW_PLAYBACK_HISTORY
+    );
+
+    expect(state.history).toHaveLength(MAX_FLOW_PLAYBACK_HISTORY);
+    expect(state.history).toStrictEqual(expectedHistory);
   });
 });

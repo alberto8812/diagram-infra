@@ -158,19 +158,22 @@ export interface FlowPlayback {
   // the ADVANCE/NEXT_STEP cases below for how the set advances).
   activeStepIds: string[];
   // Backward-compat projection of `activeStepIds[0]`'s position in the
-  // selected flow's `steps` array, kept only because
-  // src/components/FlowPlaybackReconciler/FlowPlaybackReconciler.tsx reads
-  // `flowPlayback.stepIndex` straight off this store (bypassing
-  // useFlowPlayback, which is where the rest of the app gets its
-  // compatibility shims) and src/utils/flowPlayback.ts's RECONCILE case has
-  // no way to hand it a real Flow to recompute a proper entry point from
-  // (see the comment on the `reconcile` action in
-  // src/stores/uiStateStore.tsx). When `activeStepIds` empties out (a
-  // finished run, or a reconcile that couldn't reseed) this freezes at its
-  // last value instead of resetting, mirroring the old ADVANCE behavior of
-  // leaving stepIndex at `stepsCount - 1` so the finished flow's position
-  // stays visible. T3 can retire this once the reconciler and the render
-  // layer read `activeStepIds`/`activeSteps` directly instead.
+  // selected flow's `steps` array. Kept because
+  // src/components/FlowControls/FlowPlaybackBar.tsx reads it straight off
+  // this store for its "Step N / total" label, and
+  // src/hooks/useFlowPlayback.ts's `currentStep` falls back to
+  // `steps[stepIndex]` when `activeSteps` is empty. Since T2b,
+  // FlowPlaybackReconciler.tsx no longer reads this field itself (it
+  // resolves and passes a real Flow instead, so RECONCILE can recompute a
+  // proper entry point - see src/utils/flowPlayback.ts); this comment no
+  // longer applies to it. When `activeStepIds` empties out (a finished run,
+  // or a reconcile that couldn't reseed) this freezes at its last value
+  // instead of resetting, mirroring the old ADVANCE behavior of leaving
+  // stepIndex at `stepsCount - 1` so the finished flow's position stays
+  // visible. This can be retired once FlowPlaybackBar.tsx and
+  // useFlowPlayback.ts's fallback read `activeStepIds`/`activeSteps`
+  // directly instead - out of scope here, since FlowPlaybackBar.tsx is off
+  // limits for this change.
   stepIndex: number;
   speed: number;
   // Bounded history of previous `activeStepIds` snapshots (oldest first),
@@ -237,16 +240,18 @@ export interface UiStateActions {
   prevStep: (flow: Flow | undefined) => void;
   setSpeed: (speed: number) => void;
   advance: (flow: Flow | undefined, stepId: string) => void;
-  // Signature kept exactly as before T2 (positional stepsCount, flowExists,
-  // connectorExists) because its only caller,
-  // src/components/FlowPlaybackReconciler/FlowPlaybackReconciler.tsx, is out
-  // of scope for this change and calls it with these three arguments. See
-  // the `reconcile` action body in src/stores/uiStateStore.tsx for how this
-  // gets adapted onto the new, plural RECONCILE reducer case.
+  // `activeConnectorStepIds` is precise per-id, computed by
+  // FlowPlaybackReconciler.tsx against every currently active step (a step
+  // still exists in the flow and its connector still resolves), not the old
+  // single-step-derived boolean. `flow` lets the RECONCILE reducer case
+  // (src/utils/flowPlayback.ts) drop a step deleted from the model and
+  // reseed from getFlowStartSteps when the active set would otherwise empty
+  // out - it couldn't do either without seeing the model.
   reconcile: (
     stepsCount: number,
     flowExists: boolean,
-    connectorExists: boolean
+    activeConnectorStepIds: string[],
+    flow: Flow | undefined
   ) => void;
   setActiveNodePulse: (pulse: NodePulse | null) => void;
 }
