@@ -74,6 +74,13 @@ twice, then reconciling two different notions of "next".
   inside an unreachable group, because the step the author wrote first is the
   only record the model keeps of where they meant to begin.
 
+## Known gap carried into T3
+The reducer ignores an arrival for a step that is not active, but the hook’s
+`advance()` sends `activeSteps[0]` rather than the step whose animation
+actually finished, so the guard never fires through the running app. The same
+skip existed before this feature, so it is not a regression — but T3 is what
+makes it real, since that is where the renderer learns which packet arrived.
+
 ## Open question for T4
 `next` alone can only express a fork: a step listing two successors starts
 both. The roadmap wants an alternative branch — the check fails, so go back to
@@ -176,25 +183,28 @@ its own pull request against `main`, in order, merged before the next one starts
       untestable component, so it is now `resolveActiveConnectorStepIds` in
       `src/utils/flow.ts`, next to `findFlowStepConnector` which it already
       uses. The component calls it; 4 tests added to `flow.test.ts`.
-      Contradicting pre-existing test, left unedited per instruction: `PLAY
-      is a no-op when nothing is active` (`flowPlayback.test.ts`) asserts
-      `flowPlaybackReducer(idleState, { type: 'PLAY' }, listFlow)` is a
-      true no-op. `idleState` has `activeStepIds: []` and `listFlow` has
-      steps, so this is exactly the "restart" case Fix 1 introduces - the
-      test now fails (`npm test`: 1 failed, 529 passed). Needs a decision:
-      either delete/replace this test (its scenario mixes `flowId: null`,
-      i.e. no flow selected, with an explicitly-passed non-empty flow, which
-      cannot occur through the real `play()` call site - see below) or
-      revisit the PLAY rule for this case.
-      Also found, out of scope here: `uiStateStore.tsx`'s `play()` action
-      calls `flowPlaybackReducer(get().flowPlayback, { type: 'PLAY' })` with
-      no third argument, so in the running app PLAY is always invoked with
-      `flow: undefined`. Fix 1's restart can therefore never fire through the
-      real Play button until `play()` (and its `UiStateStore` type in
-      `src/types/ui.ts`) is changed to accept and pass the selected `Flow`,
-      the way `stop`/`nextStep`/`prevStep`/`advance` already do. Neither file
-      is in this task's edit list.
-      Route: delegated direct (writer trigger: 3 non-trivial source files).
+      A pre-existing test caught a real gap in Fix 1 rather than
+      contradicting it: `PLAY is a no-op when nothing is active` asserts
+      that PLAY changes nothing from an idle state, and the first restart
+      rule started steps while `flowId` was still null. PLAY now refuses to
+      restart with no flow selected, and the test passes untouched.
+      `uiStateStore.tsx`’s `play()` was also the only playback action not
+      forwarding the selected flow, so the restart could never fire through
+      the real button; `play(flow)` and the hook now pass it, matching
+      `stop`/`nextStep`/`prevStep`/`advance`.
+      Route: delegated direct, finished inline by the parent (the writer
+      stopped at the failing test, as instructed, instead of editing it).
+- [x] T2d Correction required by review `review-a459f617cf7d7ff5` (BLOCKER
+      `R3-reconcile-reseed-not-idempotent`, corrected and then confirmed by
+      its targeted validator): RECONCILE’s reseed branch returned a new
+      state object on every pass, so an entry step whose connector had been
+      deleted reseeded to the same ids forever. The reconciler derives a memo
+      from `activeStepIds`, so new identity meant new effect dependencies and
+      an endless effect/store/render loop. Reseeding now returns the state
+      untouched when nothing moved — the guard the pre-T2 code had and the
+      move to an id set dropped. Its test asserts identity across repeated
+      reconciles, since equality was exactly what the loop already satisfied.
+      Route: direct inline.
 
 ## Acceptance criteria
 - An existing flow with no successor data advances step by step exactly as
