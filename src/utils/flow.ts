@@ -141,31 +141,34 @@ export const resolveNextSteps = (flow: Flow, stepId: string): FlowStep[] => {
 // sequence there is: the flow starts at its first step, or nowhere if it has
 // none.
 //
-// In a graph flow, the entry points are the first step of the array plus
-// every root — a step that no step in the flow lists as a successor — with
-// the first step never counted twice, in array order so parallel entries
-// start predictably. This checks every step's declared `next` (not
-// `resolveNextSteps`, which only resolves one step at a time).
+// In a graph flow the entries are chosen so that every step is reachable and
+// none is started twice. Roots — steps no step lists as a successor — come
+// first. Roots alone are not enough: a failure branch that retries by
+// pointing back at the opening step, which is the point of
+// `outcome: 'FAILURE'`, makes that step somebody's successor and so not a
+// root, and a flow can end up with no root at all. Whatever the roots do not
+// reach is therefore given an entry too, earliest in array order, because the
+// step the author wrote first is the only record the model keeps of where
+// they meant to begin.
 //
-// Roots alone cannot express where a cyclic flow begins. A failure branch
-// that retries by pointing back at the opening step — which is the point of
-// `outcome: 'FAILURE'` — makes that step somebody's successor, so it stops
-// being a root. Such a flow has no root at all, and adding one stray step
-// that nothing points to would hand it the only root and leave the opening
-// step unreachable.
-//
-// So the entries are the roots, plus the earliest step of each group the
-// roots never reach, until every step is reachable. Array order breaks the
-// tie inside such a group, because the step the author wrote first is the
-// only record the model keeps of where they meant to begin. A step that is
-// already reachable from a root is never added, so a root pointing at the
-// first step of the array does not start it a second time.
+// Picking the earliest unreached step can still pick the wrong one: a step
+// downstream of a rootless cycle can sit before that cycle in the array, and
+// starting it would run it once at the start and again when the cycle routes
+// into it. So any entry that turns out to be reachable from another entry is
+// dropped at the end. What survives is one entry per group that nothing else
+// leads into.
 export const getFlowStartSteps = (flow: Flow): FlowStep[] => {
   const [firstStep] = flow.steps;
 
   if (!isGraphFlow(flow)) {
     return firstStep ? [firstStep] : [];
   }
+
+  const stepsById = new Map(
+    flow.steps.map((step) => {
+      return [step.id, step];
+    })
+  );
 
   const successorIds = new Set<string>();
   flow.steps.forEach((step) => {
@@ -174,38 +177,53 @@ export const getFlowStartSteps = (flow: Flow): FlowStep[] => {
     });
   });
 
+  // Iterative so a long chain cannot nest deeply, and `seen` doubles as the
+  // cycle guard: a step is expanded at most once per walk.
+  const reachableFrom = (origins: FlowStep[]): Set<string> => {
+    const seen = new Set<string>();
+    const pending = [...origins];
+
+    while (pending.length > 0) {
+      const step = pending.pop() as FlowStep;
+
+      if (!seen.has(step.id)) {
+        seen.add(step.id);
+        (step.next ?? []).forEach((nextId) => {
+          const nextStep = stepsById.get(nextId);
+
+          if (nextStep) pending.push(nextStep);
+        });
+      }
+    }
+
+    return seen;
+  };
+
   const entries = flow.steps.filter((step) => {
     return !successorIds.has(step.id);
   });
 
-  // `reached` doubles as the cycle guard: a step is walked at most once, so
-  // a flow that loops back on itself terminates instead of recursing.
-  const reached = new Set<string>();
-  const walk = (step: FlowStep) => {
-    if (reached.has(step.id)) return;
-
-    reached.add(step.id);
-    (step.next ?? []).forEach((nextId) => {
-      const nextStep = flow.steps.find((candidate) => {
-        return candidate.id === nextId;
-      });
-
-      if (nextStep) walk(nextStep);
-    });
-  };
-
-  entries.forEach(walk);
+  let reached = reachableFrom(entries);
 
   flow.steps.forEach((step) => {
     if (reached.has(step.id)) return;
 
     entries.push(step);
-    walk(step);
+    reached = reachableFrom(entries);
   });
 
-  // Restore array order: unreachable groups were appended as they were found.
+  // Drop an entry that another entry already leads into, so nothing starts
+  // twice, then restore array order.
+  const settled = entries.filter((entry) => {
+    const others = entries.filter((candidate) => {
+      return candidate !== entry;
+    });
+
+    return !reachableFrom(others).has(entry.id);
+  });
+
   return flow.steps.filter((step) => {
-    return entries.includes(step);
+    return settled.includes(step);
   });
 };
 

@@ -125,6 +125,13 @@ its own pull request against `main`, in order, merged before the next one starts
       stray step and never ran the opening step. Route: direct inline (small
       and fully specified; the T1c writer had stalled, so the parent finished
       it).
+- [x] T1e Review follow-ups on T1d, treated as in-scope defects: an entry that
+      another entry already leads into is now dropped, because the earliest
+      unreached step can be a sink sitting before the rootless cycle that feeds
+      it, which started it twice; the walk became iterative over an id-to-step
+      Map, since T2 will call this on every playback; and the entry comment
+      still carried a paragraph describing the rule T1d replaced, contradicting
+      the paragraph below it.
 
 ## Acceptance criteria
 - An existing flow with no successor data plays exactly as before, step by step.
@@ -144,9 +151,9 @@ T2: move the playback cursor from `stepIndex` to an active step-id set,
 advancing through `resolveNextSteps`.
 
 ## Evidence
-Measured against the final state of this branch (T1 + T1b + T1c + T1d), not an
+Measured against the final state of this branch (T1 + T1b through T1e), not an
 intermediate run:
-- `npm test`: 504 tests / 49 suites passing. The baseline on `main` is 480 / 48.
+- `npm test`: 505 tests / 49 suites passing. The baseline on `main` is 480 / 48.
 - `npx tsc --noEmit`: clean.
 - `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
   errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None

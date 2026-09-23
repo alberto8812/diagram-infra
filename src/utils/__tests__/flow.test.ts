@@ -491,6 +491,32 @@ describe('getFlowStartSteps() works correctly', () => {
     expect(getFlowStartSteps(flow)).toStrictEqual([a1, b1]);
   });
 
+  // The earliest unreached step is not always the right entry: this sink sits
+  // before the rootless cycle that feeds it, so starting it would run it once
+  // at the start and again when the cycle routes into it.
+  test('a sink placed before the rootless cycle that feeds it is not an entry', () => {
+    const sink: FlowStep = {
+      id: 'sink',
+      connectorId: 'conn1',
+      direction: 'RESPONSE'
+    };
+    const x: FlowStep = {
+      id: 'x',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['y']
+    };
+    const y: FlowStep = {
+      id: 'y',
+      connectorId: 'conn3',
+      direction: 'REQUEST',
+      next: ['x', 'sink']
+    };
+    const flow = makeFlow([sink, x, y]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([x]);
+  });
+
   test('a step left unreachable by a dangling successor id becomes an entry', () => {
     const a: FlowStep = {
       id: 'a',
