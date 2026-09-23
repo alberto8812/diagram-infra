@@ -23,11 +23,16 @@ export type FlowPlaybackAction =
       type: 'RECONCILE';
       flowExists: boolean;
       stepsCount: number;
-      // Which of the *currently active* step ids still resolve to a real
-      // connector. Anything active but missing from this list is dropped.
-      // See the `reconcile` action in src/stores/uiStateStore.tsx for why
-      // this can't always be a precise per-step answer.
+      // Which of the step ids in `checkedStepIds` still resolve to a real
+      // connector. Anything checked but missing from this list is dropped.
       activeConnectorStepIds: string[];
+      // The active set `activeConnectorStepIds` was computed from. The caller
+      // builds both during a render, so by the time this runs the live active
+      // set may already have moved on; an id outside this set was never
+      // examined, and its absence above says nothing about its connector.
+      // Omitted by callers that have no better answer, which then means
+      // "every active id was checked", the pre-T2e behaviour.
+      checkedStepIds?: string[];
     };
 
 // No longer used by FlowPlaybackReconciler.tsx as of T2b - it now reconciles
@@ -308,15 +313,22 @@ export const flowPlaybackReducer = (
         state.activeStepIds
       );
 
+      const hasFinished = nextActiveStepIds.length === 0;
+
       return {
         ...state,
         status: 'PAUSED',
         activeStepIds: nextActiveStepIds,
-        stepIndex:
-          nextActiveStepIds.length > 0
-            ? stepIndexOf(flow, nextActiveStepIds[0])
-            : state.stepIndex,
-        history: pushHistory(state.history, state.activeStepIds)
+        stepIndex: hasFinished
+          ? state.stepIndex
+          : stepIndexOf(flow, nextActiveStepIds[0]),
+        // Same rule as ADVANCE: a run that just ended still shows its last
+        // step, so pushing that step would make the first Prev restore what
+        // is already on screen. Stepping past the end is the other way to
+        // reach that state, and it needs the same answer.
+        history: hasFinished
+          ? state.history
+          : pushHistory(state.history, state.activeStepIds)
       };
     }
 
@@ -446,9 +458,24 @@ export const flowPlaybackReducer = (
         resolveKnownStepIds(flow, state.activeStepIds)
       );
 
+      // `activeConnectorStepIds` is computed during a render, from the active
+      // set of that render, while this runs later against the live state. A
+      // playback action landing in between leaves a newly active id absent
+      // from the list for a reason that has nothing to do with its connector.
+      // So absence only counts against an id the caller actually looked at:
+      // `checkedStepIds` says which those were, and anything outside it is
+      // left alone until the next pass examines it. Judging an unchecked id
+      // by its absence would drop a live step, find no survivors, and restart
+      // a running flow out of nowhere.
+      const checkedStepIds = action.checkedStepIds
+        ? new Set(action.checkedStepIds)
+        : undefined;
+
       const survivingStepIds = state.activeStepIds.filter((id) => {
         const stepStillExists = flow ? knownStepIds.has(id) : true;
-        const connectorStillExists = action.activeConnectorStepIds.includes(id);
+        const wasChecked = checkedStepIds ? checkedStepIds.has(id) : true;
+        const connectorStillExists =
+          !wasChecked || action.activeConnectorStepIds.includes(id);
 
         return stepStillExists && connectorStillExists;
       });

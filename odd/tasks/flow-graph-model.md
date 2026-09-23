@@ -247,9 +247,9 @@ T2: move the playback cursor from `stepIndex` to an active step-id set,
 advancing through `resolveNextSteps`.
 
 ## Evidence
-Measured against the final state of this branch (T1 through T2e), not an
+Measured against the final state of this branch (T1 through T2f), not an
 intermediate run:
-- `npm test`: 534 tests / 49 suites passing. The baseline on `main` is 480 / 48.
+- `npm test`: 537 tests / 49 suites passing. The baseline on `main` is 480 / 48.
 - `npx tsc --noEmit`: clean.
 - `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
   errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None

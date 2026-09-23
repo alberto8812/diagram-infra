@@ -172,7 +172,13 @@ const initialState = () => {
         // getFlowStartSteps when the active set would otherwise empty out,
         // instead of the old all-or-nothing approximation this store had to
         // fall back to when it couldn't see the model.
-        reconcile: (stepsCount, flowExists, activeConnectorStepIds, flow) => {
+        reconcile: (
+          stepsCount,
+          flowExists,
+          activeConnectorStepIds,
+          flow,
+          checkedStepIds
+        ) => {
           const { flowPlayback } = get();
 
           set({
@@ -182,7 +188,8 @@ const initialState = () => {
                 type: 'RECONCILE',
                 flowExists,
                 stepsCount,
-                activeConnectorStepIds
+                activeConnectorStepIds,
+                checkedStepIds
               },
               flow
             )

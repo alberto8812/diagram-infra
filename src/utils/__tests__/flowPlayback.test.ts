@@ -1158,3 +1158,93 @@ describe('flowPlaybackReducer() keeps a finished run coherent', () => {
     expect(next).toBe(idle);
   });
 });
+
+describe('flowPlaybackReducer() tolerates a reconcile that arrived late', () => {
+  const listFlowLate: Flow = {
+    id: 'late',
+    name: 'Late',
+    steps: [
+      buildStep({ id: 'a' }),
+      buildStep({ id: 'b' }),
+      buildStep({ id: 'c' })
+    ]
+  };
+
+  test('NEXT_STEP past the last step leaves Prev something visible to restore', () => {
+    const atLastStep: FlowPlayback = {
+      flowId: 'late',
+      status: 'PAUSED',
+      activeStepIds: ['c'],
+      stepIndex: 2,
+      speed: 1,
+      history: [['a'], ['b']]
+    };
+
+    const pastEnd = flowPlaybackReducer(
+      atLastStep,
+      { type: 'NEXT_STEP' },
+      listFlowLate
+    );
+
+    expect(pastEnd.activeStepIds).toStrictEqual([]);
+    expect(pastEnd.history).toStrictEqual([['a'], ['b']]);
+    expect(
+      flowPlaybackReducer(pastEnd, { type: 'PREV_STEP' }, listFlowLate)
+        .activeStepIds
+    ).toStrictEqual(['b']);
+  });
+
+  // The connector list is built during a render and read in a later effect,
+  // so playback can move on in between. An id the caller never looked at must
+  // not be read as one whose connector disappeared.
+  test('an active step the caller never checked is not dropped', () => {
+    const playing: FlowPlayback = {
+      flowId: 'late',
+      status: 'PLAYING',
+      activeStepIds: ['b'],
+      stepIndex: 1,
+      speed: 1,
+      history: [['a']]
+    };
+
+    const next = flowPlaybackReducer(
+      playing,
+      {
+        type: 'RECONCILE',
+        flowExists: true,
+        stepsCount: listFlowLate.steps.length,
+        activeConnectorStepIds: ['a'],
+        checkedStepIds: ['a']
+      },
+      listFlowLate
+    );
+
+    expect(next).toBe(playing);
+  });
+
+  test('an active step that was checked and lost its connector is still dropped', () => {
+    const playing: FlowPlayback = {
+      flowId: 'late',
+      status: 'PLAYING',
+      activeStepIds: ['b'],
+      stepIndex: 1,
+      speed: 1,
+      history: [['a']]
+    };
+
+    const next = flowPlaybackReducer(
+      playing,
+      {
+        type: 'RECONCILE',
+        flowExists: true,
+        stepsCount: listFlowLate.steps.length,
+        activeConnectorStepIds: [],
+        checkedStepIds: ['b']
+      },
+      listFlowLate
+    );
+
+    expect(next.activeStepIds).toStrictEqual(['a']);
+    expect(next.status).toBe('IDLE');
+  });
+});

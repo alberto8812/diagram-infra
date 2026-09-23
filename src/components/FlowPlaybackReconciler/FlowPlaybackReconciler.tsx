@@ -64,8 +64,25 @@ export const FlowPlaybackReconciler = () => {
     const flowExists = flow !== undefined;
     const stepsCount = steps.length;
 
-    actions.reconcile(stepsCount, flowExists, activeConnectorStepIds, flow);
-  }, [actions, flow, steps, flowPlayback.flowId, activeConnectorStepIds]);
+    // The active set this render's connector check was computed from. The
+    // effect runs after the commit, so playback may already have moved on;
+    // reporting what was actually examined keeps the reducer from reading an
+    // id's absence as a missing connector when it was simply never checked.
+    actions.reconcile(
+      stepsCount,
+      flowExists,
+      activeConnectorStepIds,
+      flow,
+      flowPlayback.activeStepIds
+    );
+  }, [
+    actions,
+    flow,
+    steps,
+    flowPlayback.flowId,
+    flowPlayback.activeStepIds,
+    activeConnectorStepIds
+  ]);
 
   return null;
 };

@@ -251,7 +251,8 @@ export interface UiStateActions {
     stepsCount: number,
     flowExists: boolean,
     activeConnectorStepIds: string[],
-    flow: Flow | undefined
+    flow: Flow | undefined,
+    checkedStepIds?: string[]
   ) => void;
   setActiveNodePulse: (pulse: NodePulse | null) => void;
 }
