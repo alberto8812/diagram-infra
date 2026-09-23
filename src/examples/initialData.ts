@@ -105,7 +105,139 @@ const cicdIcons: Icons = [
   }
 ];
 
-export const icons: Icons = [...isopacks, ...cicdIcons];
+// Technology logos for software and infrastructure design, grouped by
+// collection so the icon picker shows them as separate sections. Every host
+// below sends Access-Control-Allow-Origin: *, which PNG export depends on (see
+// the aws-vpc note above). Most come from Simple Icons (CC0) in their default
+// brand colour; the few Simple Icons no longer ships use a pinned alternative.
+const simpleIcon = (
+  slug: string,
+  name: string,
+  collection: string
+): Icons[number] => {
+  return {
+    id: slug,
+    name,
+    url: `https://cdn.simpleicons.org/${slug}`,
+    isIsometric: false,
+    collection
+  };
+};
+
+const techIcons: Icons = [
+  // Languages and runtimes
+  simpleIcon('nodedotjs', 'Node.js', 'runtimes'),
+  simpleIcon('bun', 'Bun', 'runtimes'),
+  simpleIcon('deno', 'Deno', 'runtimes'),
+  simpleIcon('typescript', 'TypeScript', 'runtimes'),
+  simpleIcon('python', 'Python', 'runtimes'),
+  simpleIcon('openjdk', 'Java (OpenJDK)', 'runtimes'),
+  simpleIcon('go', 'Go', 'runtimes'),
+  simpleIcon('rust', 'Rust', 'runtimes'),
+  simpleIcon('dotnet', '.NET', 'runtimes'),
+
+  // Frameworks
+  simpleIcon('nestjs', 'NestJS', 'frameworks'),
+  simpleIcon('nextdotjs', 'Next.js', 'frameworks'),
+  simpleIcon('react', 'React', 'frameworks'),
+  simpleIcon('angular', 'Angular', 'frameworks'),
+  simpleIcon('vuedotjs', 'Vue.js', 'frameworks'),
+  simpleIcon('express', 'Express', 'frameworks'),
+  simpleIcon('spring', 'Spring', 'frameworks'),
+  simpleIcon('springboot', 'Spring Boot', 'frameworks'),
+  simpleIcon('fastapi', 'FastAPI', 'frameworks'),
+  simpleIcon('django', 'Django', 'frameworks'),
+  simpleIcon('laravel', 'Laravel', 'frameworks'),
+
+  // APIs and contracts
+  simpleIcon('graphql', 'GraphQL', 'apis'),
+  {
+    id: 'grpc',
+    name: 'gRPC',
+    url: 'https://raw.githubusercontent.com/cncf/artwork/831f27a0cf4227b1b76a28ff51a9f4127a2195ec/projects/grpc/icon/color/grpc-icon-color.svg',
+    isIsometric: false,
+    collection: 'apis'
+  },
+  simpleIcon('openapiinitiative', 'OpenAPI', 'apis'),
+  simpleIcon('swagger', 'Swagger', 'apis'),
+
+  // Data stores
+  simpleIcon('redis', 'Redis', 'data'),
+  simpleIcon('postgresql', 'PostgreSQL', 'data'),
+  simpleIcon('mariadb', 'MariaDB', 'data'),
+  simpleIcon('mongodb', 'MongoDB', 'data'),
+  simpleIcon('sqlite', 'SQLite', 'data'),
+  simpleIcon('apachecassandra', 'Apache Cassandra', 'data'),
+  simpleIcon('neo4j', 'Neo4j', 'data'),
+  simpleIcon('elasticsearch', 'Elasticsearch', 'data'),
+  simpleIcon('minio', 'MinIO', 'data'),
+  simpleIcon('qdrant', 'Qdrant', 'data'),
+  simpleIcon('supabase', 'Supabase', 'data'),
+  simpleIcon('firebase', 'Firebase', 'data'),
+
+  // Messaging and streaming
+  simpleIcon('apachekafka', 'Apache Kafka', 'messaging'),
+  simpleIcon('rabbitmq', 'RabbitMQ', 'messaging'),
+  simpleIcon('nats.io', 'NATS', 'messaging'),
+  simpleIcon('apachespark', 'Apache Spark', 'messaging'),
+  simpleIcon('apacheairflow', 'Apache Airflow', 'messaging'),
+
+  // Identity and security
+  simpleIcon('keycloak', 'Keycloak', 'identity'),
+  simpleIcon('auth0', 'Auth0', 'identity'),
+  simpleIcon('okta', 'Okta', 'identity'),
+  simpleIcon('jsonwebtokens', 'JWT', 'identity'),
+  simpleIcon('vault', 'HashiCorp Vault', 'identity'),
+
+  // Networking and edge
+  simpleIcon('nginx', 'NGINX', 'networking'),
+  simpleIcon('traefikproxy', 'Traefik Proxy', 'networking'),
+  simpleIcon('kong', 'Kong', 'networking'),
+  simpleIcon('envoyproxy', 'Envoy', 'networking'),
+  simpleIcon('istio', 'Istio', 'networking'),
+  simpleIcon('cloudflare', 'Cloudflare', 'networking'),
+  simpleIcon('vercel', 'Vercel', 'networking'),
+
+  // Containers, platform and delivery
+  simpleIcon('docker', 'Docker', 'platform'),
+  simpleIcon('kubernetes', 'Kubernetes', 'platform'),
+  simpleIcon('helm', 'Helm', 'platform'),
+  simpleIcon('argo', 'Argo', 'platform'),
+  simpleIcon('ansible', 'Ansible', 'platform'),
+  simpleIcon('jenkins', 'Jenkins', 'platform'),
+  simpleIcon('gitlab', 'GitLab', 'platform'),
+  simpleIcon('linux', 'Linux', 'platform'),
+  simpleIcon('ubuntu', 'Ubuntu', 'platform'),
+
+  // Observability
+  simpleIcon('prometheus', 'Prometheus', 'observability'),
+  simpleIcon('grafana', 'Grafana', 'observability'),
+  simpleIcon('opentelemetry', 'OpenTelemetry', 'observability'),
+  simpleIcon('jaeger', 'Jaeger', 'observability'),
+  simpleIcon('datadog', 'Datadog', 'observability'),
+  simpleIcon('sentry', 'Sentry', 'observability'),
+
+  // AI and LLM tooling
+  simpleIcon('anthropic', 'Anthropic', 'ai'),
+  simpleIcon('claude', 'Claude', 'ai'),
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    url: 'https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.95.1/icons/openai.svg',
+    isIsometric: false,
+    collection: 'ai'
+  },
+  simpleIcon('googlegemini', 'Google Gemini', 'ai'),
+  simpleIcon('mistralai', 'Mistral AI', 'ai'),
+  simpleIcon('meta', 'Meta (Llama)', 'ai'),
+  simpleIcon('ollama', 'Ollama', 'ai'),
+  simpleIcon('huggingface', 'Hugging Face', 'ai'),
+  simpleIcon('modelcontextprotocol', 'Model Context Protocol (MCP)', 'ai'),
+  simpleIcon('langchain', 'LangChain', 'ai'),
+  simpleIcon('perplexity', 'Perplexity', 'ai')
+];
+
+export const icons: Icons = [...isopacks, ...cicdIcons, ...techIcons];
 
 // Sample flow for the playback controls/flow editor (T5): a landside
 // check-in request reaching the central database, and its response
