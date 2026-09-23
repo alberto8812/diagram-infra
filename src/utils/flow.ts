@@ -134,11 +134,42 @@ export const resolveNextSteps = (flow: Flow, stepId: string): FlowStep[] => {
   return nextStep ? [nextStep] : [];
 };
 
-// Entry point(s) of a flow: the first step of the array, if there is one.
-// T2 will use this to seed the initial active step set; for a flow with no
-// steps at all, there is nothing to start.
+// Entry point(s) of a flow. T2 will use this to seed the initial active step
+// set.
+//
+// In a list flow (see `isGraphFlow`), array order is the only notion of
+// sequence there is: the flow starts at its first step, or nowhere if it has
+// none.
+//
+// In a graph flow, the roots are every step that no step in the flow lists
+// as a successor. This checks every step's declared `next` (not
+// `resolveNextSteps`, which only resolves one step at a time), and preserves
+// declared array order among the roots so parallel entry points start in a
+// predictable order. If a graph flow has no roots at all — a pure cycle such
+// as A -> B -> A, where every step is someone's successor — there is nothing
+// to fall back to except the first step of the array: without this
+// fallback, playback would have nothing to start from and the flow could
+// never run.
 export const getFlowStartSteps = (flow: Flow): FlowStep[] => {
   const [firstStep] = flow.steps;
+
+  if (!isGraphFlow(flow)) {
+    return firstStep ? [firstStep] : [];
+  }
+
+  const successorIds = new Set<string>();
+  flow.steps.forEach((step) => {
+    (step.next ?? []).forEach((nextId) => {
+      successorIds.add(nextId);
+    });
+  });
+
+  const roots = flow.steps.filter((step) => {
+    return !successorIds.has(step.id);
+  });
+
+  if (roots.length > 0) return roots;
+
   return firstStep ? [firstStep] : [];
 };
 

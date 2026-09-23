@@ -103,6 +103,15 @@ its own pull request against `main`, in order, merged before the next one starts
       in a graph flow now ends the branch instead of falling back to array
       order) and added a round-trip test for the `next`/`outcome` schema
       fields.
+- [x] T1c Review follow-ups on T1b, treated as in-scope defects: corrected the
+      `next` comment in `src/schemas/flow.ts`, which still described the array
+      fallthrough T1b removed and would have misled T2 and T5; refreshed the
+      Evidence section, which still carried T1's numbers; and made
+      `getFlowStartSteps` return the real roots of a graph flow — every step no
+      step lists as a successor — instead of always the first array element.
+      A pure cycle has no root, so it falls back to the first step: without
+      that, a flow whose failure branch returns to an earlier step could never
+      start.
 
 ## Acceptance criteria
 - An existing flow with no successor data plays exactly as before, step by step.
@@ -122,8 +131,18 @@ T2: move the playback cursor from `stepIndex` to an active step-id set,
 advancing through `resolveNextSteps`.
 
 ## Evidence
-- T1: 490 tests / 48 suites passing (480 on main plus 10 new), `tsc --noEmit`
-  clean, and `npm run lint` reports the same 5 pre-existing problems as `main`
-  (2 `import/no-cycle` errors, 3 `no-console`/`no-alert` warnings), verified by
-  stashing the change and re-running. Route: delegated direct (writer trigger:
-  4 non-trivial files).
+Measured against the final state of this branch (T1 + T1b + T1c), not an
+intermediate run:
+- `npm test`: 500 tests / 49 suites passing. The baseline on `main` is 480 / 48.
+- `npx tsc --noEmit`: clean.
+- `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
+  errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None
+  added, verified by stashing the change and re-running.
+
+Route: delegated direct (writer trigger: 4+ non-trivial files). The T1c writer
+stalled partway through; the parent verified its partial work and finished the
+remaining follow-up inline.
+
+An earlier revision of this section recorded T1's numbers after T1b had already
+changed the behaviour. Verification evidence names the state it was measured
+against, or it is worse than no evidence at all.
