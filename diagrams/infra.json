@@ -1356,7 +1356,7 @@
           "connectorId": "abc7bcca-a83c-4087-ae11-7cd7180e7ea6",
           "direction": "RESPONSE",
           "outcome": "FAILURE",
-          "label": "Corrige y reintenta"
+          "label": "Falla notificada al dev"
         }
       ]
     }
