@@ -42,7 +42,31 @@ export const useFlowPlayback = () => {
     return flow?.steps ?? [];
   }, [flow]);
 
-  const currentStep: FlowStep | undefined = steps[flowPlayback.stepIndex];
+  // The steps currently "in flight", in flow order (see
+  // FlowPlayback.activeStepIds, src/types/ui.ts). A list flow never has
+  // more than one.
+  const activeSteps: FlowStep[] = useMemo(() => {
+    return flowPlayback.activeStepIds.reduce<FlowStep[]>((resolved, id) => {
+      const step = steps.find((_step) => {
+        return _step.id === id;
+      });
+
+      return step ? [...resolved, step] : resolved;
+    }, []);
+  }, [flowPlayback.activeStepIds, steps]);
+
+  // `currentStep`/`currentConnector` are the first active step (and its
+  // connector) - every existing consumer (Connector.tsx, FlowPlaybackBar.tsx,
+  // FlowPlaybackReconciler.tsx) was written against a single current step,
+  // and for a list flow there is never more than one active step, so this
+  // is exactly the old behaviour. When `activeSteps` is empty (a run just
+  // finished, or a reconcile couldn't reseed - see
+  // src/utils/flowPlayback.ts), fall back to the frozen
+  // `flowPlayback.stepIndex` so a finished flow keeps showing its last step
+  // instead of nothing, matching the pre-T2 ADVANCE behaviour of leaving
+  // stepIndex at `stepsCount - 1` rather than clearing it.
+  const currentStep: FlowStep | undefined =
+    activeSteps[0] ?? steps[flowPlayback.stepIndex];
 
   const findConnector = useCallback(
     (step: FlowStep | undefined): Connector | undefined => {
@@ -57,30 +81,34 @@ export const useFlowPlayback = () => {
 
   const selectFlow = useCallback(
     (flowId: string | null) => {
-      actions.selectFlow(flowId);
+      const targetFlow = flows.find((_flow) => {
+        return _flow.id === flowId;
+      });
+
+      actions.selectFlow(flowId, targetFlow);
     },
-    [actions]
+    [actions, flows]
   );
 
   const play = useCallback(() => {
-    actions.play(steps.length);
-  }, [actions, steps.length]);
+    actions.play();
+  }, [actions]);
 
   const pause = useCallback(() => {
     actions.pause();
   }, [actions]);
 
   const stop = useCallback(() => {
-    actions.stop();
-  }, [actions]);
+    actions.stop(flow);
+  }, [actions, flow]);
 
   const nextStep = useCallback(() => {
-    actions.nextStep(steps.length);
-  }, [actions, steps.length]);
+    actions.nextStep(flow);
+  }, [actions, flow]);
 
   const prevStep = useCallback(() => {
-    actions.prevStep(steps.length);
-  }, [actions, steps.length]);
+    actions.prevStep(flow);
+  }, [actions, flow]);
 
   const setSpeed = useCallback(
     (speed: number) => {
@@ -90,9 +118,17 @@ export const useFlowPlayback = () => {
   );
 
   // Called by the renderer when the current step's animation completes.
+  // Dispatches the id of the first active step, so behaviour is unchanged
+  // for a list flow (there is only ever one). T3, which renders a packet
+  // per active step rather than gating on a single current one, will pass
+  // the real arriving step's id instead.
   const advance = useCallback(() => {
-    actions.advance(steps.length);
-  }, [actions, steps.length]);
+    const arrivedStepId = activeSteps[0]?.id;
+
+    if (arrivedStepId === undefined) return;
+
+    actions.advance(flow, arrivedStepId);
+  }, [actions, flow, activeSteps]);
 
   const activeNodePulse = useUiStateStore((state) => {
     return state.activeNodePulse;
@@ -111,6 +147,7 @@ export const useFlowPlayback = () => {
     flowPlayback,
     currentStep,
     currentConnector,
+    activeSteps,
     activeNodePulse,
     selectFlow,
     play,

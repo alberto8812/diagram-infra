@@ -97,21 +97,20 @@ const initialState = () => {
         setRendererEl: (el) => {
           set({ rendererEl: el });
         },
-        selectFlow: (flowId) => {
-          set({
-            flowPlayback: flowPlaybackReducer(get().flowPlayback, {
-              type: 'SELECT_FLOW',
-              flowId
-            })
-          });
-        },
-        play: (stepsLength) => {
+        selectFlow: (flowId, flow) => {
           set({
             flowPlayback: flowPlaybackReducer(
               get().flowPlayback,
-              { type: 'PLAY' },
-              stepsLength
+              { type: 'SELECT_FLOW', flowId },
+              flow
             )
+          });
+        },
+        play: () => {
+          set({
+            flowPlayback: flowPlaybackReducer(get().flowPlayback, {
+              type: 'PLAY'
+            })
           });
         },
         pause: () => {
@@ -121,28 +120,30 @@ const initialState = () => {
             })
           });
         },
-        stop: () => {
+        stop: (flow) => {
           set({
-            flowPlayback: flowPlaybackReducer(get().flowPlayback, {
-              type: 'STOP'
-            })
+            flowPlayback: flowPlaybackReducer(
+              get().flowPlayback,
+              { type: 'STOP' },
+              flow
+            )
           });
         },
-        nextStep: (stepsLength) => {
+        nextStep: (flow) => {
           set({
             flowPlayback: flowPlaybackReducer(
               get().flowPlayback,
               { type: 'NEXT_STEP' },
-              stepsLength
+              flow
             )
           });
         },
-        prevStep: (stepsLength) => {
+        prevStep: (flow) => {
           set({
             flowPlayback: flowPlaybackReducer(
               get().flowPlayback,
               { type: 'PREV_STEP' },
-              stepsLength
+              flow
             )
           });
         },
@@ -154,22 +155,45 @@ const initialState = () => {
             })
           });
         },
-        advance: (stepsLength) => {
+        advance: (flow, stepId) => {
           set({
             flowPlayback: flowPlaybackReducer(
               get().flowPlayback,
-              { type: 'ADVANCE' },
-              stepsLength
+              { type: 'ADVANCE', stepId },
+              flow
             )
           });
         },
+        // Signature intentionally unchanged from before T2: its only
+        // caller, FlowPlaybackReconciler.tsx, is out of scope for this
+        // change and calls it positionally as
+        // actions.reconcile(stepsCount, flowExists, connectorExists). That
+        // component resolves a single boolean for the one step at its
+        // (legacy) stepIndex cursor, and has no Flow object to hand us - this
+        // store only ever sees UI/playback state, never model data (see
+        // src/stores/modelStore.tsx: a separate per-provider store, not a
+        // reachable singleton). So the plural RECONCILE reducer case is fed
+        // the best approximation this input allows: when the checked
+        // connector is fine, every currently active step is treated as
+        // fine; when it's missing, every currently active step is treated
+        // as missing. That's exactly the old all-or-nothing behavior this
+        // caller has always driven for a single-active-step (list) flow,
+        // and the reducer degrades to it gracefully (see the RECONCILE case
+        // in src/utils/flowPlayback.ts) without a Flow to reseed real entry
+        // points from.
         reconcile: (stepsCount, flowExists, connectorExists) => {
+          const { flowPlayback } = get();
+          const activeConnectorStepIds = connectorExists
+            ? flowPlayback.activeStepIds
+            : [];
+
           set({
-            flowPlayback: flowPlaybackReducer(
-              get().flowPlayback,
-              { type: 'RECONCILE', flowExists, connectorExists },
-              stepsCount
-            )
+            flowPlayback: flowPlaybackReducer(flowPlayback, {
+              type: 'RECONCILE',
+              flowExists,
+              stepsCount,
+              activeConnectorStepIds
+            })
           });
         },
         setActiveNodePulse: (activeNodePulse) => {

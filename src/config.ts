@@ -129,9 +129,15 @@ export const DEFAULT_FLOW_STEP_DURATION_MS = 1200;
 export const INITIAL_FLOW_PLAYBACK: FlowPlayback = {
   flowId: null,
   status: 'IDLE',
+  activeStepIds: [],
   stepIndex: 0,
-  speed: 1
+  speed: 1,
+  history: []
 };
+
+// Cap on FlowPlayback.history (src/utils/flowPlayback.ts) so a long-running
+// playback session can't grow it without bound.
+export const MAX_FLOW_PLAYBACK_HISTORY = 50;
 
 // Speed multipliers offered by the playback controls (FlowPlaybackBar).
 export const FLOW_PLAYBACK_SPEED_OPTIONS = [0.5, 1, 2] as const;

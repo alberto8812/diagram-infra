@@ -74,6 +74,14 @@ twice, then reconciling two different notions of "next".
   inside an unreachable group, because the step the author wrote first is the
   only record the model keeps of where they meant to begin.
 
+## Open question for T4
+`next` alone can only express a fork: a step listing two successors starts
+both. The roadmap wants an alternative branch — the check fails, so go back to
+the developer — which is a choice, and nothing in the model expresses a
+condition. T4 has to decide how `outcome` selects a branch rather than running
+every branch. T2 must not assume a dead branch will ever arrive, or a join
+would wait forever for a path that was never taken.
+
 ## TDD
 Mode: off (source: prior ODD docs in this repo). Runner: jest (`npm test`).
 
@@ -90,7 +98,7 @@ its own pull request against `main`, in order, merged before the next one starts
       and a pure `resolveNextSteps(flow, stepId)` helper that falls back to array
       order when `next` is absent. Unit tests including cycles and dangling ids.
       No playback behaviour change yet.
-- [ ] T2 Reducer: `FlowPlayback` moves from `stepIndex` to an active step-id set,
+- [x] T2 Reducer: `FlowPlayback` moves from `stepIndex` to an active step-id set,
       advancing through the T1 helper. Extend `flowPlayback.test.ts`; every
       existing assertion must still hold for linear flows.
 - [ ] T3 Hook and renderer: `useFlowPlayback` exposes the active steps, and
@@ -151,9 +159,9 @@ T2: move the playback cursor from `stepIndex` to an active step-id set,
 advancing through `resolveNextSteps`.
 
 ## Evidence
-Measured against the final state of this branch (T1 + T1b through T1e), not an
+Measured against the final state of this branch (T1 through T2), not an
 intermediate run:
-- `npm test`: 505 tests / 49 suites passing. The baseline on `main` is 480 / 48.
+- `npm test`: 513 tests / 49 suites passing. The baseline on `main` is 480 / 48.
 - `npx tsc --noEmit`: clean.
 - `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
   errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None

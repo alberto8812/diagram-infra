@@ -1,5 +1,5 @@
 import { Coords, EditorModeEnum, MainMenuOptions } from './common';
-import { Icon } from './model';
+import { Flow, Icon } from './model';
 import { ItemReference } from './scene';
 
 interface AddItemControls {
@@ -149,8 +149,38 @@ export type FlowPlaybackStatus = keyof typeof FlowPlaybackStatusOptions;
 export interface FlowPlayback {
   flowId: string | null;
   status: FlowPlaybackStatus;
+  // The set of steps currently "in flight", in the order they appear in the
+  // selected flow's `steps` array (not insertion order). A list flow (no
+  // step declares `next`) never has more than one entry here, which is what
+  // keeps a linear flow behaving exactly as it did with the old single
+  // `stepIndex` cursor. A graph flow can have several, e.g. both sides of a
+  // fork (see resolveNextSteps/getFlowStartSteps, src/utils/flow.ts, and
+  // the ADVANCE/NEXT_STEP cases below for how the set advances).
+  activeStepIds: string[];
+  // Backward-compat projection of `activeStepIds[0]`'s position in the
+  // selected flow's `steps` array, kept only because
+  // src/components/FlowPlaybackReconciler/FlowPlaybackReconciler.tsx reads
+  // `flowPlayback.stepIndex` straight off this store (bypassing
+  // useFlowPlayback, which is where the rest of the app gets its
+  // compatibility shims) and src/utils/flowPlayback.ts's RECONCILE case has
+  // no way to hand it a real Flow to recompute a proper entry point from
+  // (see the comment on the `reconcile` action in
+  // src/stores/uiStateStore.tsx). When `activeStepIds` empties out (a
+  // finished run, or a reconcile that couldn't reseed) this freezes at its
+  // last value instead of resetting, mirroring the old ADVANCE behavior of
+  // leaving stepIndex at `stepsCount - 1` so the finished flow's position
+  // stays visible. T3 can retire this once the reconciler and the render
+  // layer read `activeStepIds`/`activeSteps` directly instead.
   stepIndex: number;
   speed: number;
+  // Bounded history of previous `activeStepIds` snapshots (oldest first),
+  // pushed on every forward transition (NEXT_STEP, ADVANCE) so PREV_STEP has
+  // something principled to restore. A graph step can have several
+  // predecessors or sit in a cycle, so "decrement the cursor" has no defined
+  // inverse the way it did for a flat array index; capped at
+  // MAX_FLOW_PLAYBACK_HISTORY (src/config.ts) so a long run can't grow this
+  // without bound.
+  history: string[][];
 }
 
 // Which node should show a short arrival pulse (ConnectorPacket.tsx sets
@@ -199,14 +229,20 @@ export interface UiStateActions {
   setMouse: (mouse: Mouse) => void;
   setRendererEl: (el: HTMLDivElement) => void;
   setEnableDebugTools: (enabled: boolean) => void;
-  selectFlow: (flowId: string | null) => void;
-  play: (stepsLength: number) => void;
+  selectFlow: (flowId: string | null, flow: Flow | undefined) => void;
+  play: () => void;
   pause: () => void;
-  stop: () => void;
-  nextStep: (stepsLength: number) => void;
-  prevStep: (stepsLength: number) => void;
+  stop: (flow: Flow | undefined) => void;
+  nextStep: (flow: Flow | undefined) => void;
+  prevStep: (flow: Flow | undefined) => void;
   setSpeed: (speed: number) => void;
-  advance: (stepsLength: number) => void;
+  advance: (flow: Flow | undefined, stepId: string) => void;
+  // Signature kept exactly as before T2 (positional stepsCount, flowExists,
+  // connectorExists) because its only caller,
+  // src/components/FlowPlaybackReconciler/FlowPlaybackReconciler.tsx, is out
+  // of scope for this change and calls it with these three arguments. See
+  // the `reconcile` action body in src/stores/uiStateStore.tsx for how this
+  // gets adapted onto the new, plural RECONCILE reducer case.
   reconcile: (
     stepsCount: number,
     flowExists: boolean,
