@@ -470,4 +470,21 @@ describe('readStoredDiagramName() / writeStoredDiagramName()', () => {
       'network'
     );
   });
+
+  // Remembering the selection is best effort: a browser that refuses storage
+  // must not take the picker down with it.
+  test('writeStoredDiagramName() swallows a storage error', () => {
+    mockLocalStorage({
+      getItem: () => {
+        return null;
+      },
+      setItem: () => {
+        throw new Error('blocked storage');
+      }
+    });
+
+    expect(() => {
+      writeStoredDiagramName('network');
+    }).not.toThrow();
+  });
 });

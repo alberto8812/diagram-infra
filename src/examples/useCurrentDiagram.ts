@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { InitialData } from 'src/Isoflow';
 import { initialData, icons } from './initialData';
 import { loadDiagram, readStoredDiagramName } from './persistence';
@@ -22,27 +22,42 @@ export const useCurrentDiagram = (): UseCurrentDiagramResult => {
   const [restored, setRestored] = useState<InitialData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Guards against an unmount (or, in principle, a re-run) racing the load:
-  // only apply the result while this effect instance is still current.
-  const cancelledRef = useRef(false);
-
   useEffect(() => {
-    cancelledRef.current = false;
+    // Local to this effect run rather than a ref: a shared ref is set by one
+    // run's cleanup and then cleared by the next run's setup, which is
+    // exactly the mount/unmount/remount StrictMode performs, so a stale
+    // promise could still apply its result. A local flag belongs to its own
+    // run and cannot be reset by another.
+    let cancelled = false;
 
-    loadDiagram(readStoredDiagramName(), icons).then((data) => {
-      if (cancelledRef.current) return;
+    loadDiagram(readStoredDiagramName(), icons)
+      .then((data) => {
+        if (cancelled) return;
 
-      setRestored(data);
-      setIsLoading(false);
-    });
+        setRestored(data);
+      })
+      .catch(() => {
+        // loadDiagram falls back to localStorage and returns null rather than
+        // rejecting, so this only fires if it breaks unexpectedly. Leaving
+        // isLoading true would strand these modes on a blank screen forever,
+        // so fall through to the example instead.
+      })
+      .finally(() => {
+        if (cancelled) return;
+
+        setIsLoading(false);
+      });
 
     return () => {
-      cancelledRef.current = true;
+      cancelled = true;
     };
   }, []);
 
+  // Both modes opened fitted to the view before they loaded a saved diagram,
+  // so a restored one keeps that too. Read-only mode especially: a viewer who
+  // cannot rearrange the canvas should not open off-centre.
   return {
-    initialData: restored ?? { ...initialData, fitToView: true },
+    initialData: { ...(restored ?? initialData), fitToView: true },
     isLoading
   };
 };
