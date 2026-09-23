@@ -205,6 +205,18 @@ its own pull request against `main`, in order, merged before the next one starts
       move to an id set dropped. Its test asserts identity across repeated
       reconciles, since equality was exactly what the loop already satisfied.
       Route: direct inline.
+- [x] T2e Review follow-ups on T2d, treated as in-scope defects. ADVANCE
+      pushed the last step onto the history when the run finished, so the
+      first Prev restored the step already on screen and the button appeared
+      dead; the finished run no longer pushes, which is what the pre-T2
+      behaviour did. RECONCILE stopped clamping `stepIndex`, so a finished
+      run whose flow then lost steps could leave it pointing past the end and
+      FlowPlaybackBar showing a position the flow does not have; the
+      unchanged-survivors branch clamps again, while still returning the same
+      object when nothing moved, so T2d’s loop guard holds. One T2-era test
+      pinned the history push and was updated, with the reason recorded beside
+      the assertion: it documented the deviation this finding named, not a
+      behaviour from the base. Route: direct inline.
 
 ## Acceptance criteria
 - An existing flow with no successor data advances step by step exactly as
@@ -235,9 +247,9 @@ T2: move the playback cursor from `stepIndex` to an active step-id set,
 advancing through `resolveNextSteps`.
 
 ## Evidence
-Measured against the final state of this branch (T1 through T2c), not an
+Measured against the final state of this branch (T1 through T2e), not an
 intermediate run:
-- `npm test`: 531 tests / 49 suites passing. The baseline on `main` is 480 / 48.
+- `npm test`: 534 tests / 49 suites passing. The baseline on `main` is 480 / 48.
 - `npx tsc --noEmit`: clean.
 - `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
   errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None

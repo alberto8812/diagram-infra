@@ -382,15 +382,24 @@ export const flowPlaybackReducer = (
         action.stepId
       ]);
 
+      const hasFinished = nextActiveStepIds.length === 0;
+
       return {
         ...state,
-        status: nextActiveStepIds.length === 0 ? 'IDLE' : state.status,
+        status: hasFinished ? 'IDLE' : state.status,
         activeStepIds: nextActiveStepIds,
-        stepIndex:
-          nextActiveStepIds.length > 0
-            ? stepIndexOf(flow, nextActiveStepIds[0])
-            : state.stepIndex,
-        history: pushHistory(state.history, state.activeStepIds)
+        stepIndex: hasFinished
+          ? state.stepIndex
+          : stepIndexOf(flow, nextActiveStepIds[0]),
+        // A finished run keeps showing its last step, because the active set
+        // is empty and `stepIndex` stays where it was. Pushing that same step
+        // onto the history would make the first Prev restore what is already
+        // on screen, so the button would appear to do nothing until pressed
+        // twice. Going back from the end means going back to the step before
+        // it, which is what the history already holds.
+        history: hasFinished
+          ? state.history
+          : pushHistory(state.history, state.activeStepIds)
       };
     }
 
@@ -445,7 +454,20 @@ export const flowPlaybackReducer = (
       });
 
       if (survivingStepIds.length === state.activeStepIds.length) {
-        return state;
+        // The active set survived intact, but `stepIndex` can still be stale:
+        // a finished run leaves it frozen at the last step, and deleting
+        // steps afterwards can leave it pointing past the end of the array.
+        // FlowPlaybackBar reads it straight off the store for its
+        // "Step N / total" label, so an unclamped value shows a position the
+        // flow does not have. It stays until T3 retires the field.
+        const clampedStepIndex = clampStepIndex(
+          state.stepIndex,
+          flow ? flow.steps.length : 0
+        );
+
+        return clampedStepIndex === state.stepIndex
+          ? state
+          : { ...state, stepIndex: clampedStepIndex };
       }
 
       if (survivingStepIds.length > 0) {

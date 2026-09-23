@@ -376,7 +376,9 @@ describe('flowPlaybackReducer() works correctly', () => {
       activeStepIds: [],
       stepIndex: 2,
       speed: 1,
-      history: [['step2']]
+      // The finished run keeps showing step2, so pushing step2's snapshot
+      // would make the first PREV_STEP restore what is already on screen.
+      history: []
     });
   });
 
@@ -1050,5 +1052,109 @@ describe('flowPlaybackReducer() caps history at MAX_FLOW_PLAYBACK_HISTORY', () =
 
     expect(state.history).toHaveLength(MAX_FLOW_PLAYBACK_HISTORY);
     expect(state.history).toStrictEqual(expectedHistory);
+  });
+});
+
+describe('flowPlaybackReducer() keeps a finished run coherent', () => {
+  const finishedRunFlow: Flow = {
+    id: 'list',
+    name: 'List',
+    steps: [
+      buildStep({ id: 'a' }),
+      buildStep({ id: 'b' }),
+      buildStep({ id: 'c' })
+    ]
+  };
+
+  // A finished run still shows its last step, because the active set is empty
+  // and stepIndex stays put. Pushing that same step onto the history would
+  // make the first Prev restore what is already on screen.
+  test('PREV_STEP after the run finished moves back a visible step', () => {
+    let state: FlowPlayback = {
+      flowId: 'list',
+      status: 'PLAYING',
+      activeStepIds: ['a'],
+      stepIndex: 0,
+      speed: 1,
+      history: []
+    };
+
+    ['a', 'b', 'c'].forEach((stepId) => {
+      state = flowPlaybackReducer(
+        state,
+        { type: 'ADVANCE', stepId },
+        finishedRunFlow
+      );
+    });
+
+    expect(state.activeStepIds).toStrictEqual([]);
+    expect(state.history).toStrictEqual([['a'], ['b']]);
+
+    const previous = flowPlaybackReducer(
+      state,
+      { type: 'PREV_STEP' },
+      finishedRunFlow
+    );
+
+    expect(previous.activeStepIds).toStrictEqual(['b']);
+  });
+
+  // stepIndex is frozen at the last step once a run finishes, so deleting
+  // steps afterwards can leave it pointing past the end. FlowPlaybackBar
+  // reads it for its "Step N / total" label.
+  test('RECONCILE clamps a stepIndex left past the end of a shrunken flow', () => {
+    const finished: FlowPlayback = {
+      flowId: 'list',
+      status: 'IDLE',
+      activeStepIds: [],
+      stepIndex: 2,
+      speed: 1,
+      history: []
+    };
+    const shrunken: Flow = {
+      id: 'list',
+      name: 'List',
+      steps: [buildStep({ id: 'a' })]
+    };
+
+    const next = flowPlaybackReducer(
+      finished,
+      {
+        type: 'RECONCILE',
+        flowExists: true,
+        stepsCount: shrunken.steps.length,
+        activeConnectorStepIds: []
+      },
+      shrunken
+    );
+
+    expect(next.stepIndex).toBe(0);
+  });
+
+  // The clamp must not cost the idempotence T2d restored: an unchanged
+  // reconcile has to hand back the same object, or the reconciler's effect
+  // loops on a new identity.
+  test('RECONCILE with an in-range stepIndex still returns the same object', () => {
+    const idle: FlowPlayback = {
+      flowId: 'list',
+      status: 'IDLE',
+      activeStepIds: ['a'],
+      stepIndex: 0,
+      speed: 1,
+      history: []
+    };
+
+    const next = flowPlaybackReducer(
+      idle,
+      {
+        type: 'RECONCILE',
+        flowExists: true,
+        stepsCount: finishedRunFlow.steps.length,
+        activeConnectorStepIds: ['a']
+      },
+      finishedRunFlow
+    );
+
+    expect(next).toBe(idle);
   });
 });
