@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useTheme, Box } from '@mui/material';
 import { keyframes } from '@emotion/react';
 import { UNPROJECTED_TILE_SIZE } from 'src/config';
+import { Coords, FlowStep, FlowStepDirection } from 'src/types';
 import {
   getAnchorTile,
   getColorVariant,
@@ -130,16 +131,21 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
 
   const {
     flowPlayback,
-    currentStep,
-    currentConnector,
+    activeStepsByConnectorId,
     advance,
     setActiveNodePulse
   } = useFlowPlayback();
   const reducedMotion = useReducedMotion();
 
+  // The steps currently in flight on THIS connector (T3: several can be in
+  // flight at once, e.g. a REQUEST and a RESPONSE), in activeStepIds order.
+  const connectorSteps: FlowStep[] = useMemo(() => {
+    return activeStepsByConnectorId[connector.id] ?? [];
+  }, [activeStepsByConnectorId, connector.id]);
+
   // A text key for `connector.path.tiles` (rather than the array itself) so
-  // `packetPoints` below only recomputes when the path's actual x/y values
-  // change. `connector` (from `useConnector`) gets a brand-new object/array
+  // `packetPointsByDirection` below only recomputes when the path's actual
+  // x/y values change. `connector` (from `useConnector`) gets a new object/array
   // reference on *every* model change, even ones unrelated to this
   // connector, so keying off the array reference would recreate `points` -
   // and, via ConnectorPacket's tween-creation effect - restart the running
@@ -152,78 +158,101 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
       .join('|');
   }, [connector.path.tiles]);
 
-  // Stable across playback status/speed changes and unrelated model edits -
-  // this is what lets ConnectorPacket's tween survive PAUSE/PLAY and speed
-  // changes instead of restarting (see the finding this fixes:
-  // R3-pause-restarts-packet-tween). Only tiles/direction/offset (the
-  // connector's own geometry) can change its identity.
-  const packetPoints = useMemo(() => {
-    if (
-      !currentStep ||
-      !currentConnector ||
-      currentConnector.id !== connector.id
-    ) {
-      return null;
-    }
+  // The geometry-only layer: one points array per direction, and there are
+  // only two directions, so both are built once per connector geometry.
+  //
+  // Keying this on direction rather than on the active steps is what keeps a
+  // flying packet's tween alive. ConnectorPacket's tween-creation effect
+  // depends on `points` by identity, so a new array restarts the packet from
+  // the beginning (that is R3-pause-restarts-packet-tween). T3 lets two steps
+  // share one connector - a REQUEST and a RESPONSE in flight at once - so the
+  // active set can gain or lose a sibling while an existing packet is still
+  // mid-flight. Because these deps name only the connector's own geometry,
+  // neither that, nor a speed change, nor PAUSE/PLAY can change a packet's
+  // points reference.
+  const packetPointsByDirection = useMemo(() => {
+    const build = (direction: FlowStepDirection): Coords[] => {
+      return getPacketPathPoints(connector.path.tiles, direction).map(
+        (tile) => {
+          return {
+            x: tile.x * UNPROJECTED_TILE_SIZE + drawOffset.x,
+            y: tile.y * UNPROJECTED_TILE_SIZE + drawOffset.y
+          };
+        }
+      );
+    };
 
-    const tiles = getPacketPathPoints(
-      connector.path.tiles,
-      currentStep.direction
-    );
-
-    return tiles.map((tile) => {
-      return {
-        x: tile.x * UNPROJECTED_TILE_SIZE + drawOffset.x,
-        y: tile.y * UNPROJECTED_TILE_SIZE + drawOffset.y
-      };
-    });
+    return {
+      REQUEST: build('REQUEST'),
+      RESPONSE: build('RESPONSE')
+    };
+    // `tilesKey`, not `connector.path.tiles`: see its comment above. Keying
+    // off the array reference would rebuild these on every unrelated model
+    // edit and restart every running tween with them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    tilesKey,
-    currentStep?.id,
-    currentStep?.direction,
-    currentConnector?.id,
-    connector.id,
-    drawOffset
-  ]);
+  }, [tilesKey, drawOffset]);
 
   const isPlaybackActive = flowPlayback.status !== 'IDLE';
 
-  const packet = useMemo(() => {
-    if (!isPlaybackActive || !packetPoints || !currentStep) return null;
+  // Presentation layer: color/label/duration/speed on top of the
+  // geometry-only points above. This is where `flowPlayback.speed` (and
+  // everything else that can legitimately change mid-flight) is allowed to
+  // vary freely, because none of it touches `packetPointsByDirection` - a
+  // speed change recomputes this array (new packet objects) but each
+  // packet's `points` field keeps the same reference from the memo above,
+  // so ConnectorPacket's tween never rebuilds for it.
+  const packets = useMemo(() => {
+    if (!isPlaybackActive) return [];
 
-    const packetColor =
-      currentStep.direction === 'RESPONSE'
-        ? theme.palette.secondary.main
-        : theme.palette.primary.main;
+    return connectorSteps.reduce<
+      {
+        stepId: string;
+        points: Coords[];
+        color: string;
+        label: string | undefined;
+        baseDurationMs: number;
+        speed: number;
+        destinationItemId: string | null;
+      }[]
+    >((resolved, step) => {
+      const points = packetPointsByDirection[step.direction];
 
-    const destinationItemId = getPacketDestinationItemId(
-      connector.anchors,
-      currentStep.direction
-    );
+      const packetColor =
+        step.direction === 'RESPONSE'
+          ? theme.palette.secondary.main
+          : theme.palette.primary.main;
 
-    return {
-      stepId: currentStep.id,
-      points: packetPoints,
-      color: packetColor,
-      // Falls back to the connector's protocol (roadmap item 2) when the
-      // step itself has no label.
-      label: getPacketLabel(currentStep, {
-        protocol: connector.protocol,
-        port: connector.port
-      }),
-      // The step's own duration at speed 1x - ConnectorPacket applies the
-      // current speed to the running tween via `timeScale()` instead of
-      // rebuilding it, so a speed change mid-flight doesn't restart the
-      // tween either.
-      baseDurationMs: getStepDurationMs(currentStep, 1),
-      speed: flowPlayback.speed,
-      destinationItemId
-    };
+      const destinationItemId = getPacketDestinationItemId(
+        connector.anchors,
+        step.direction
+      );
+
+      return [
+        ...resolved,
+        {
+          stepId: step.id,
+          points,
+          color: packetColor,
+          // Falls back to the connector's protocol (roadmap item 2) when the
+          // step itself has no label.
+          label: getPacketLabel(step, {
+            protocol: connector.protocol,
+            port: connector.port
+          }),
+          // The step's own duration at speed 1x - ConnectorPacket applies
+          // the current speed to the running tween via `timeScale()`
+          // instead of rebuilding it, so a speed change mid-flight doesn't
+          // restart the tween either.
+          baseDurationMs: getStepDurationMs(step, 1),
+          speed: flowPlayback.speed,
+          destinationItemId
+        }
+      ];
+    }, []);
   }, [
     isPlaybackActive,
-    packetPoints,
-    currentStep,
+    connectorSteps,
+    packetPointsByDirection,
     connector.anchors,
     connector.protocol,
     connector.port,
@@ -327,28 +356,30 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
           </g>
         )}
 
-        {packet && (
-          <ConnectorPacket
-            key={packet.stepId}
-            points={packet.points}
-            color={packet.color}
-            label={packet.label}
-            baseDurationMs={packet.baseDurationMs}
-            speed={packet.speed}
-            status={flowPlayback.status === 'PAUSED' ? 'PAUSED' : 'PLAYING'}
-            reducedMotion={reducedMotion}
-            onArrive={() => {
-              if (packet.destinationItemId) {
-                setActiveNodePulse({
-                  nodeId: packet.destinationItemId,
-                  token: Date.now()
-                });
-              }
+        {packets.map((packet) => {
+          return (
+            <ConnectorPacket
+              key={packet.stepId}
+              points={packet.points}
+              color={packet.color}
+              label={packet.label}
+              baseDurationMs={packet.baseDurationMs}
+              speed={packet.speed}
+              status={flowPlayback.status === 'PAUSED' ? 'PAUSED' : 'PLAYING'}
+              reducedMotion={reducedMotion}
+              onArrive={() => {
+                if (packet.destinationItemId) {
+                  setActiveNodePulse({
+                    nodeId: packet.destinationItemId,
+                    token: Date.now()
+                  });
+                }
 
-              advance();
-            }}
-          />
-        )}
+                advance(packet.stepId);
+              }}
+            />
+          );
+        })}
       </Svg>
     </Box>
   );

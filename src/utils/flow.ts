@@ -53,6 +53,49 @@ export const resolveActiveConnectorStepIds = (
   });
 };
 
+// Groups the active steps by the connector they travel on (T3: a graph flow
+// can have several steps in flight at once, e.g. a REQUEST and a RESPONSE on
+// the same connector, or steps on entirely different connectors). This is
+// the grouping `src/hooks/useFlowPlayback.ts` computes once per render for
+// the whole scene, so each rendered Connector can look up its own steps
+// instead of filtering the full active-step list itself.
+//
+// This is deliberately not `resolveActiveConnectorStepIds`: that function
+// answers "which active ids still resolve to *some* connector" for
+// reconciliation and returns a flat id list; this one buckets the resolved
+// steps by connector id for rendering. An active id that resolves to no step,
+// or whose step's connector no longer resolves, is skipped rather than
+// thrown on - same reconciliation gap `resolveActiveConnectorStepIds` covers,
+// just expressed as a grouping instead of a filter. Order is preserved
+// within each connector's array - `activeStepIds`' order, since that's the
+// order playback advances steps in.
+export const groupActiveStepsByConnectorId = (
+  steps: FlowStep[],
+  views: View[],
+  activeStepIds: string[]
+): Record<string, FlowStep[]> => {
+  const groups: Record<string, FlowStep[]> = {};
+
+  activeStepIds.forEach((id) => {
+    const step = steps.find((_step) => {
+      return _step.id === id;
+    });
+
+    if (!step) return;
+
+    const connector = findFlowStepConnector(views, step);
+    if (!connector) return;
+
+    if (!groups[connector.id]) {
+      groups[connector.id] = [];
+    }
+
+    groups[connector.id].push(step);
+  });
+
+  return groups;
+};
+
 // Labels a connector by its endpoint item names ("Item A -> Item B") for the
 // flow editor's connector picker. Anchors that reference a tile rather than
 // an item (or an item that no longer resolves) fall back to "?".

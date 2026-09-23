@@ -5,6 +5,7 @@ import {
   buildReturnPathSteps,
   getMissingReturnPathSteps,
   getPacketLabel,
+  groupActiveStepsByConnectorId,
   resolveActiveConnectorStepIds,
   resolveNextSteps,
   getFlowStartSteps
@@ -89,6 +90,79 @@ describe('resolveActiveConnectorStepIds() works correctly', () => {
 
   test('returns an empty result for an empty active list', () => {
     expect(resolveActiveConnectorStepIds(steps, views, [])).toStrictEqual([]);
+  });
+});
+
+describe('groupActiveStepsByConnectorId() works correctly', () => {
+  const conn1 = connector('conn1', []);
+  const conn2 = connector('conn2', []);
+  const views = [
+    { id: 'view1', name: 'View 1', connectors: [conn1, conn2] }
+  ] as unknown as View[];
+
+  const step1: FlowStep = {
+    id: 's1',
+    connectorId: 'conn1',
+    direction: 'REQUEST'
+  };
+  const step2: FlowStep = {
+    id: 's2',
+    connectorId: 'conn1',
+    direction: 'RESPONSE'
+  };
+  const step3: FlowStep = {
+    id: 's3',
+    connectorId: 'conn2',
+    direction: 'REQUEST'
+  };
+  const step4: FlowStep = {
+    id: 's4',
+    connectorId: 'missing-connector',
+    direction: 'REQUEST'
+  };
+  const steps = [step1, step2, step3, step4];
+
+  test('groups several active steps sharing one connector, preserving order', () => {
+    expect(
+      groupActiveStepsByConnectorId(steps, views, ['s1', 's2'])
+    ).toStrictEqual({
+      conn1: [step1, step2]
+    });
+  });
+
+  test('groups active steps across different connectors separately', () => {
+    expect(
+      groupActiveStepsByConnectorId(steps, views, ['s1', 's3'])
+    ).toStrictEqual({
+      conn1: [step1],
+      conn2: [step3]
+    });
+  });
+
+  test('skips an active id that resolves to no step', () => {
+    expect(
+      groupActiveStepsByConnectorId(steps, views, ['s1', 'deleted-step'])
+    ).toStrictEqual({
+      conn1: [step1]
+    });
+  });
+
+  test('skips a step whose connector no longer resolves', () => {
+    expect(groupActiveStepsByConnectorId(steps, views, ['s4'])).toStrictEqual(
+      {}
+    );
+  });
+
+  test('preserves activeStepIds order within a connector, not steps order', () => {
+    expect(
+      groupActiveStepsByConnectorId(steps, views, ['s2', 's1'])
+    ).toStrictEqual({
+      conn1: [step2, step1]
+    });
+  });
+
+  test('returns an empty object for an empty active set', () => {
+    expect(groupActiveStepsByConnectorId(steps, views, [])).toStrictEqual({});
   });
 });
 

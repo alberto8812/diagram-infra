@@ -2,7 +2,10 @@ import { useCallback, useMemo } from 'react';
 import { Connector, Flow, FlowStep } from 'src/types';
 import { useModelStore } from 'src/stores/modelStore';
 import { useUiStateStore } from 'src/stores/uiStateStore';
-import { findFlowStepConnector } from 'src/utils';
+import {
+  findFlowStepConnector,
+  groupActiveStepsByConnectorId
+} from 'src/utils';
 
 // Exposes the currently selected flow, its current step and the resolved
 // connector for that step, plus the playback actions. It never starts a
@@ -68,6 +71,18 @@ export const useFlowPlayback = () => {
   const currentStep: FlowStep | undefined =
     activeSteps[0] ?? steps[flowPlayback.stepIndex];
 
+  // The active steps grouped by the connector they travel on, computed once
+  // for the whole scene (T3) so each rendered Connector can look up its own
+  // steps via `activeStepsByConnectorId[connector.id]` instead of every
+  // Connector filtering the full active-step list itself.
+  const activeStepsByConnectorId: Record<string, FlowStep[]> = useMemo(() => {
+    return groupActiveStepsByConnectorId(
+      steps,
+      views,
+      flowPlayback.activeStepIds
+    );
+  }, [steps, views, flowPlayback.activeStepIds]);
+
   const findConnector = useCallback(
     (step: FlowStep | undefined): Connector | undefined => {
       return findFlowStepConnector(views, step);
@@ -117,18 +132,17 @@ export const useFlowPlayback = () => {
     [actions]
   );
 
-  // Called by the renderer when the current step's animation completes.
-  // Dispatches the id of the first active step, so behaviour is unchanged
-  // for a list flow (there is only ever one). T3, which renders a packet
-  // per active step rather than gating on a single current one, will pass
-  // the real arriving step's id instead.
-  const advance = useCallback(() => {
-    const arrivedStepId = activeSteps[0]?.id;
-
-    if (arrivedStepId === undefined) return;
-
-    actions.advance(flow, arrivedStepId);
-  }, [actions, flow, activeSteps]);
+  // Called by the renderer when a step's packet animation completes, with
+  // the id of the step that arrived (T3: several packets can be in flight at
+  // once, so the caller must say which one). An id that is no longer active
+  // is passed through as-is - the reducer already no-ops on that (e.g. a
+  // step reconciled away between the packet arriving and this call).
+  const advance = useCallback(
+    (stepId: string) => {
+      actions.advance(flow, stepId);
+    },
+    [actions, flow]
+  );
 
   const activeNodePulse = useUiStateStore((state) => {
     return state.activeNodePulse;
@@ -148,6 +162,7 @@ export const useFlowPlayback = () => {
     currentStep,
     currentConnector,
     activeSteps,
+    activeStepsByConnectorId,
     activeNodePulse,
     selectFlow,
     play,
