@@ -71,14 +71,36 @@ export const getPacketLabel = (
     : connector.protocol;
 };
 
-// Resolves the step(s) that run after `stepId` in the flow graph. A step
-// with a non-empty `next` names its successors explicitly, in the order
-// listed; a dangling id (no matching step in the flow) is skipped rather
-// than thrown on, and a duplicated id resolves to the same step only once.
-// A step with no `next` (or an empty one) falls back to array order: the
-// single following step, or none if it is the last one. This fallback is
-// what keeps existing linear flows working unchanged, since they declare no
-// successor data at all.
+// A flow is a graph, or it is a list — never half. It is a graph as soon as
+// any of its steps declares `next`, even an empty one: that step's author
+// has opted into explicit successors, and from then on array position is no
+// longer a valid stand-in for "what runs next" anywhere in the flow. A flow
+// where no step declares `next` is a list, which is exactly what every
+// existing (pre-graph) flow looks like, so it keeps the old array-order
+// behaviour unchanged.
+const isGraphFlow = (flow: Flow): boolean => {
+  return flow.steps.some((step) => {
+    return step.next !== undefined;
+  });
+};
+
+// Resolves the step(s) that run after `stepId`.
+//
+// In a graph flow (see `isGraphFlow`), a step's successors are exactly its
+// resolved `next`: dangling ids are skipped rather than thrown on, a
+// duplicated id resolves to the same step only once, and declared order is
+// preserved. Array position is never consulted. An absent or empty `next`
+// means the branch ends there — it resolves to `[]`, not to "whatever comes
+// next in the array". Falling back to array order here would make a branch
+// unable to end: a step that finishes a short path would silently continue
+// into whatever another branch happens to place after it in the array,
+// which is exactly the bug this rule fixes (a `next: []` success leaf
+// falling through into the next branch's first step).
+//
+// In a list flow, nothing declares `next`, so the only meaningful order is
+// the array's: the successor is the single following step, or none if it is
+// the last one. This is the backward-compatibility fallback existing linear
+// flows rely on.
 export const resolveNextSteps = (flow: Flow, stepId: string): FlowStep[] => {
   const index = flow.steps.findIndex((step) => {
     return step.id === stepId;
@@ -88,10 +110,10 @@ export const resolveNextSteps = (flow: Flow, stepId: string): FlowStep[] => {
 
   const step = flow.steps[index];
 
-  if (step.next && step.next.length > 0) {
+  if (isGraphFlow(flow)) {
     const seen = new Set<string>();
 
-    return step.next.reduce<FlowStep[]>((resolved, nextId) => {
+    return (step.next ?? []).reduce<FlowStep[]>((resolved, nextId) => {
       if (seen.has(nextId)) return resolved;
 
       const nextStep = flow.steps.find((candidate) => {
@@ -105,19 +127,104 @@ export const resolveNextSteps = (flow: Flow, stepId: string): FlowStep[] => {
     }, []);
   }
 
-  // Fallback: no explicit `next`, so the successor is whatever comes next
-  // in the array — this is the array-order behaviour existing (pre-graph)
-  // flows rely on.
+  // List flow: no step declares `next`, so the successor is whatever comes
+  // next in the array — this is the array-order behaviour existing
+  // (pre-graph) flows rely on.
   const nextStep = flow.steps[index + 1];
   return nextStep ? [nextStep] : [];
 };
 
-// Entry point(s) of a flow: the first step of the array, if there is one.
-// T2 will use this to seed the initial active step set; for a flow with no
-// steps at all, there is nothing to start.
+// Entry point(s) of a flow. T2 will use this to seed the initial active step
+// set.
+//
+// In a list flow (see `isGraphFlow`), array order is the only notion of
+// sequence there is: the flow starts at its first step, or nowhere if it has
+// none.
+//
+// In a graph flow the entries are chosen so that every step is reachable and
+// none is started twice. Roots — steps no step lists as a successor — come
+// first. Roots alone are not enough: a failure branch that retries by
+// pointing back at the opening step, which is the point of
+// `outcome: 'FAILURE'`, makes that step somebody's successor and so not a
+// root, and a flow can end up with no root at all. Whatever the roots do not
+// reach is therefore given an entry too, earliest in array order, because the
+// step the author wrote first is the only record the model keeps of where
+// they meant to begin.
+//
+// Picking the earliest unreached step can still pick the wrong one: a step
+// downstream of a rootless cycle can sit before that cycle in the array, and
+// starting it would run it once at the start and again when the cycle routes
+// into it. So any entry that turns out to be reachable from another entry is
+// dropped at the end. What survives is one entry per group that nothing else
+// leads into.
 export const getFlowStartSteps = (flow: Flow): FlowStep[] => {
   const [firstStep] = flow.steps;
-  return firstStep ? [firstStep] : [];
+
+  if (!isGraphFlow(flow)) {
+    return firstStep ? [firstStep] : [];
+  }
+
+  const stepsById = new Map(
+    flow.steps.map((step) => {
+      return [step.id, step];
+    })
+  );
+
+  const successorIds = new Set<string>();
+  flow.steps.forEach((step) => {
+    (step.next ?? []).forEach((nextId) => {
+      successorIds.add(nextId);
+    });
+  });
+
+  // Iterative so a long chain cannot nest deeply, and `seen` doubles as the
+  // cycle guard: a step is expanded at most once per walk.
+  const reachableFrom = (origins: FlowStep[]): Set<string> => {
+    const seen = new Set<string>();
+    const pending = [...origins];
+
+    while (pending.length > 0) {
+      const step = pending.pop() as FlowStep;
+
+      if (!seen.has(step.id)) {
+        seen.add(step.id);
+        (step.next ?? []).forEach((nextId) => {
+          const nextStep = stepsById.get(nextId);
+
+          if (nextStep) pending.push(nextStep);
+        });
+      }
+    }
+
+    return seen;
+  };
+
+  const entries = flow.steps.filter((step) => {
+    return !successorIds.has(step.id);
+  });
+
+  let reached = reachableFrom(entries);
+
+  flow.steps.forEach((step) => {
+    if (reached.has(step.id)) return;
+
+    entries.push(step);
+    reached = reachableFrom(entries);
+  });
+
+  // Drop an entry that another entry already leads into, so nothing starts
+  // twice, then restore array order.
+  const settled = entries.filter((entry) => {
+    const others = entries.filter((candidate) => {
+      return candidate !== entry;
+    });
+
+    return !reachableFrom(others).has(entry.id);
+  });
+
+  return flow.steps.filter((step) => {
+    return settled.includes(step);
+  });
 };
 
 // "Add return path": appends a RESPONSE step for every existing REQUEST step

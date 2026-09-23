@@ -50,9 +50,15 @@ twice, then reconciling two different notions of "next".
   it is silently dropped on load and save (see `src/schemas/__tests__/diagrams.test.ts`).
 
 ## Design decisions
-- `FlowStep.next?: string[]` — explicit successor step ids. Absent means "the next
-  step in the array", which is what keeps existing flows working. More than one
-  entry means those steps start together.
+- `FlowStep.next?: string[]` — explicit successor step ids. A flow is a graph or a
+  list, never half: it is a graph as soon as any of its steps declares `next`
+  (present, even empty), and in a graph flow a step's successors are exactly its
+  resolved `next` — dangling ids skipped, repeats deduped, declared order
+  preserved — with an absent or empty `next` meaning the branch ends (`[]`).
+  Array order is never consulted in a graph flow. A flow where no step declares
+  `next` is a list flow and keeps the old array-order fallback, which is what
+  keeps every existing (pre-graph) flow working unchanged. More than one entry
+  means those steps start together.
 - `FlowStep.outcome?: 'SUCCESS' | 'FAILURE'` — the semantic marker a failing step
   needs. A failure branch is then an ordinary step marked FAILURE whose `next`
   points at the recovery path; no separate branch type is introduced.
@@ -61,6 +67,12 @@ twice, then reconciling two different notions of "next".
   existing behaviour falls out of the general case rather than being special-cased.
 - Graph traversal lives in a pure helper so it can be tested without React, GSAP
   or the DOM, which the render layer cannot be.
+- A flow's entry points are its roots, plus the earliest step of each group the
+  roots never reach, until every step is reachable. Roots alone cannot say where
+  a cyclic flow begins, and a failure branch that retries by pointing back at the
+  opening step is exactly how a cycle appears here. Array order breaks the tie
+  inside an unreachable group, because the step the author wrote first is the
+  only record the model keeps of where they meant to begin.
 
 ## TDD
 Mode: off (source: prior ODD docs in this repo). Runner: jest (`npm test`).
@@ -87,7 +99,39 @@ its own pull request against `main`, in order, merged before the next one starts
 - [ ] T4 Failure rendering: a step with `outcome: 'FAILURE'` renders its packet
       distinctly, reusing the existing palette rather than a hardcoded colour.
 - [ ] T5 Editor UI: author successors and outcome in `FlowEditorDialog`, keeping
-      the current linear add/reorder flow usable for simple cases.
+      the current linear add/reorder flow usable for simple cases. Must also
+      make "add return path" (`buildReturnPathSteps` / `getMissingReturnPathSteps`
+      in `src/utils/flow.ts`) generate steps that declare their own successors:
+      today those steps have no `next`, so in a graph flow every generated step
+      would resolve as terminal and the return path would not chain.
+- [x] T1b Review follow-ups on T1, treated as in-scope T1 defects: fixed the
+      graph-vs-list asymmetry in `resolveNextSteps` (an absent or empty `next`
+      in a graph flow now ends the branch instead of falling back to array
+      order) and added a round-trip test for the `next`/`outcome` schema
+      fields.
+- [x] T1c Review follow-ups on T1b, treated as in-scope defects: corrected the
+      `next` comment in `src/schemas/flow.ts`, which still described the array
+      fallthrough T1b removed and would have misled T2 and T5; refreshed the
+      Evidence section, which still carried T1's numbers; and made
+      `getFlowStartSteps` return the real roots of a graph flow — every step no
+      step lists as a successor — instead of always the first array element.
+      A pure cycle has no root, so it falls back to the first step: without
+      that, a flow whose failure branch returns to an earlier step could never
+      start.
+- [x] T1d Review follow-up on T1c, treated as an in-scope defect: entry points
+      are now the roots plus the earliest step of each group the roots never
+      reach. Falling back to the first step only when a flow had no root at all
+      meant that a retry cycle plus one stray step handed the entry to the
+      stray step and never ran the opening step. Route: direct inline (small
+      and fully specified; the T1c writer had stalled, so the parent finished
+      it).
+- [x] T1e Review follow-ups on T1d, treated as in-scope defects: an entry that
+      another entry already leads into is now dropped, because the earliest
+      unreached step can be a sink sitting before the rootless cycle that feeds
+      it, which started it twice; the walk became iterative over an id-to-step
+      Map, since T2 will call this on every playback; and the entry comment
+      still carried a paragraph describing the rule T1d replaced, contradicting
+      the paragraph below it.
 
 ## Acceptance criteria
 - An existing flow with no successor data plays exactly as before, step by step.
@@ -107,8 +151,18 @@ T2: move the playback cursor from `stepIndex` to an active step-id set,
 advancing through `resolveNextSteps`.
 
 ## Evidence
-- T1: 490 tests / 48 suites passing (480 on main plus 10 new), `tsc --noEmit`
-  clean, and `npm run lint` reports the same 5 pre-existing problems as `main`
-  (2 `import/no-cycle` errors, 3 `no-console`/`no-alert` warnings), verified by
-  stashing the change and re-running. Route: delegated direct (writer trigger:
-  4 non-trivial files).
+Measured against the final state of this branch (T1 + T1b through T1e), not an
+intermediate run:
+- `npm test`: 505 tests / 49 suites passing. The baseline on `main` is 480 / 48.
+- `npx tsc --noEmit`: clean.
+- `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
+  errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None
+  added, verified by stashing the change and re-running.
+
+Route: delegated direct (writer trigger: 4+ non-trivial files). The T1c writer
+stalled partway through; the parent verified its partial work and finished the
+remaining follow-up inline.
+
+An earlier revision of this section recorded T1's numbers after T1b had already
+changed the behaviour. Verification evidence names the state it was measured
+against, or it is worse than no evidence at all.

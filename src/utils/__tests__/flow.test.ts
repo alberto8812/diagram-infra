@@ -114,7 +114,7 @@ describe('resolveNextSteps() works correctly', () => {
     return { id: 'flow1', name: 'Flow 1', steps };
   };
 
-  test('falls back to array order when no step declares next', () => {
+  test('a pure list flow (no step declares next) falls back to array order — backward compatibility', () => {
     const step1: FlowStep = {
       id: 's1',
       connectorId: 'conn1',
@@ -253,6 +253,69 @@ describe('resolveNextSteps() works correctly', () => {
     expect(resolveNextSteps(flow, 'a')).toStrictEqual([stepB]);
     expect(resolveNextSteps(flow, 'b')).toStrictEqual([stepA]);
   });
+
+  test('a branch can end: a success leaf with no next does not fall into another branch (reproduction)', () => {
+    const req: FlowStep = {
+      id: 'req',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['ok', 'fail']
+    };
+    const ok: FlowStep = {
+      id: 'ok',
+      connectorId: 'conn2',
+      direction: 'RESPONSE'
+    };
+    const fail: FlowStep = {
+      id: 'fail',
+      connectorId: 'conn3',
+      direction: 'RESPONSE',
+      outcome: 'FAILURE'
+    };
+    const rollback: FlowStep = {
+      id: 'rollback',
+      connectorId: 'conn4',
+      direction: 'RESPONSE'
+    };
+    const flow = makeFlow([req, ok, fail, rollback]);
+
+    expect(resolveNextSteps(flow, 'ok')).toStrictEqual([]);
+  });
+
+  test('an explicit empty next in a graph flow is terminal', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: []
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['s1']
+    };
+    const flow = makeFlow([step1, step2]);
+
+    expect(resolveNextSteps(flow, 's1')).toStrictEqual([]);
+  });
+
+  test('a step with no next in a graph flow is terminal, and does not fall through to the array', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST'
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['s1']
+    };
+    const flow = makeFlow([step1, step2]);
+
+    expect(resolveNextSteps(flow, 's1')).toStrictEqual([]);
+  });
 });
 
 describe('getFlowStartSteps() works correctly', () => {
@@ -260,7 +323,7 @@ describe('getFlowStartSteps() works correctly', () => {
     return { id: 'flow1', name: 'Flow 1', steps };
   };
 
-  test('returns the first step of the array', () => {
+  test('a list flow (no step declares next) returns only the first step — unchanged', () => {
     const step1: FlowStep = {
       id: 's1',
       connectorId: 'conn1',
@@ -278,6 +341,197 @@ describe('getFlowStartSteps() works correctly', () => {
 
   test('returns an empty array for a flow with no steps', () => {
     expect(getFlowStartSteps(makeFlow([]))).toStrictEqual([]);
+  });
+
+  test('a graph flow with one root returns that root even when it is not the first array element', () => {
+    const notARoot: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['s3']
+    };
+    const root: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['s1']
+    };
+    const leaf: FlowStep = {
+      id: 's3',
+      connectorId: 'conn3',
+      direction: 'RESPONSE'
+    };
+    // `root` sits second in the array; only `notARoot` is anyone's
+    // successor of `root` itself, so array position cannot be what makes
+    // this test pass.
+    const flow = makeFlow([notARoot, root, leaf]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([root]);
+  });
+
+  test('a graph flow with two roots returns both, in array order (parallel entry)', () => {
+    const rootA: FlowStep = {
+      id: 'a',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['c']
+    };
+    const rootB: FlowStep = {
+      id: 'b',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['c']
+    };
+    const c: FlowStep = {
+      id: 'c',
+      connectorId: 'conn3',
+      direction: 'RESPONSE'
+    };
+    const flow = makeFlow([rootA, rootB, c]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([rootA, rootB]);
+  });
+
+  test('a pure cycle (A -> B -> A) has no root and falls back to the first step, not []', () => {
+    const stepA: FlowStep = {
+      id: 'a',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['b']
+    };
+    const stepB: FlowStep = {
+      id: 'b',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['a']
+    };
+    const flow = makeFlow([stepA, stepB]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([stepA]);
+  });
+
+  // The scenario this whole feature exists for: a FAILURE step retries by
+  // pointing back at the opening step, which stops being a root. One stray
+  // step then owns the only root, and with roots alone it would become the
+  // sole entry while the opening step never ran.
+  test('a retry cycle plus a stray step still starts at the opening step', () => {
+    const start: FlowStep = {
+      id: 'start',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['check']
+    };
+    const check: FlowStep = {
+      id: 'check',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['fail']
+    };
+    const fail: FlowStep = {
+      id: 'fail',
+      connectorId: 'conn3',
+      direction: 'RESPONSE',
+      outcome: 'FAILURE',
+      next: ['start']
+    };
+    const stray: FlowStep = {
+      id: 'stray',
+      connectorId: 'conn4',
+      direction: 'REQUEST'
+    };
+    const flow = makeFlow([start, check, fail, stray]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([start, stray]);
+  });
+
+  test('a root pointing at the first array step does not start it twice', () => {
+    const child: FlowStep = {
+      id: 'child',
+      connectorId: 'conn1',
+      direction: 'REQUEST'
+    };
+    const root: FlowStep = {
+      id: 'root',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['child']
+    };
+    const flow = makeFlow([child, root]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([root]);
+  });
+
+  test('two disjoint cycles each get their own entry step', () => {
+    const a1: FlowStep = {
+      id: 'a1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['a2']
+    };
+    const a2: FlowStep = {
+      id: 'a2',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['a1']
+    };
+    const b1: FlowStep = {
+      id: 'b1',
+      connectorId: 'conn3',
+      direction: 'REQUEST',
+      next: ['b2']
+    };
+    const b2: FlowStep = {
+      id: 'b2',
+      connectorId: 'conn4',
+      direction: 'REQUEST',
+      next: ['b1']
+    };
+    const flow = makeFlow([a1, a2, b1, b2]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([a1, b1]);
+  });
+
+  // The earliest unreached step is not always the right entry: this sink sits
+  // before the rootless cycle that feeds it, so starting it would run it once
+  // at the start and again when the cycle routes into it.
+  test('a sink placed before the rootless cycle that feeds it is not an entry', () => {
+    const sink: FlowStep = {
+      id: 'sink',
+      connectorId: 'conn1',
+      direction: 'RESPONSE'
+    };
+    const x: FlowStep = {
+      id: 'x',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['y']
+    };
+    const y: FlowStep = {
+      id: 'y',
+      connectorId: 'conn3',
+      direction: 'REQUEST',
+      next: ['x', 'sink']
+    };
+    const flow = makeFlow([sink, x, y]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([x]);
+  });
+
+  test('a step left unreachable by a dangling successor id becomes an entry', () => {
+    const a: FlowStep = {
+      id: 'a',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['missing']
+    };
+    const b: FlowStep = {
+      id: 'b',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+    const flow = makeFlow([a, b]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([a, b]);
   });
 });
 
