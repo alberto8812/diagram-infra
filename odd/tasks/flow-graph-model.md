@@ -183,12 +183,28 @@ its own pull request against `main`, in order, merged before the next one starts
       `testEnvironment: "node"`; only `src/examples/__tests__/
       useCurrentDiagram.test.tsx` opts in per-file). Same gap as
       `R3-mode-gating-untested` / `R3-readonly-gating-untested`.
-- [ ] T4 Failure rendering: a step with `outcome: 'FAILURE'` renders its packet
+- [x] T4 Failure rendering: a step with `outcome: 'FAILURE'` renders its packet
       distinctly, reusing the existing palette rather than a hardcoded colour.
       Unblocked on 2026-09-23: `outcome` marks its own step (see the resolved
       question above), and branch selection is no longer part of this task.
-      Scope is now just the colour decision in `Connector.tsx`, where the
-      packet already picks a colour from `step.direction`.
+      Commit `340ec92`, branch `feat/flow-graph-t4-failure-rendering`.
+      `getPacketColor(direction, outcome, palette)` in `src/utils/flowPacket.ts`
+      decides outcome first, direction second; the caller passes the three
+      colours so the rule stays pure and testable without a DOM. 5 tests,
+      mutation-verified: letting direction win fails exactly the 2 failure
+      tests.
+      **The colour needed measuring, not taste.** `error.main` alone would not
+      have read as a failure: this theme's RESPONSE colour is already a red
+      (`#df004c`) and error red sits 10.1 deltaE from it — and every FAILURE
+      step in the shipped diagrams is a RESPONSE step, so the change would have
+      been invisible exactly where it matters. Darkened and saturated through
+      the existing `getColorVariant` it measures 22.4 from RESPONSE and 49.4
+      from REQUEST. User chose this over `warning.main` (30.7 but means
+      "warning", not "failure").
+      Checks observed: `npm test` 570/570 in 50 suites, `npx tsc --noEmit`
+      clean, `npm run lint` at the pre-existing 5 problems.
+      Not covered: no component test renders the packet, so the colour reaching
+      the DOM is verified by reading the code. Same gap as T3.
 - [ ] T5 Editor UI: author successors and outcome in `FlowEditorDialog`, keeping
       the current linear add/reorder flow usable for simple cases. Must also
       make "add return path" (`buildReturnPathSteps` / `getMissingReturnPathSteps`
@@ -319,12 +335,15 @@ its own pull request against `main`, in order, merged before the next one starts
 - Scope chosen by the user: graph model, not a narrow failure-only cut.
 
 ## Next step
-T4, but it is BLOCKED on the two open questions above — `next` forks rather
-than chooses, and `outcome: FAILURE` marks either the failed step or the whole
-failure path. Both are user decisions and both must be settled before T4 can
-be specified, because T4 is the task that renders `outcome`.
+T5, the last task: author successors and outcome in `FlowEditorDialog`, and
+make "add return path" generate steps that declare their own successors.
 
-T5 is not blocked and could run first if T4 stays undecided.
+Worth knowing before starting it: the editor is list-shaped today. Every
+author-facing verb (add step, up/down, delete, add return path) operates on a
+flat array, and there is no control for `next` or `outcome` anywhere. The graph
+capability is currently reachable only by hand-editing JSON — no shipped
+diagram declares `next` at all. T5 is therefore the largest of the three, and
+it is where the branch-selection question above will become concrete.
 
 ## Evidence
 Measured against the final state of this branch (T1 through T2f), not an
