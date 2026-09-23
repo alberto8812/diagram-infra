@@ -3,7 +3,8 @@ import {
   getPacketPathPoints,
   getPolylineLength,
   getPointAtProgress,
-  getPacketDestinationItemId
+  getPacketDestinationItemId,
+  getPacketColor
 } from '../flowPacket';
 
 const straightLine: Coords[] = [
@@ -132,5 +133,47 @@ describe('getPacketDestinationItemId() works correctly', () => {
 
   test('returns null when there are no anchors', () => {
     expect(getPacketDestinationItemId([], 'REQUEST')).toBeNull();
+  });
+});
+
+describe('getPacketColor()', () => {
+  // Distinct, obviously fake values: an assertion that passes for the wrong
+  // reason is harder to hide when the colours cannot be confused.
+  const palette = {
+    request: 'REQUEST_COLOR',
+    response: 'RESPONSE_COLOR',
+    failure: 'FAILURE_COLOR'
+  };
+
+  test('a REQUEST step travels in the request colour', () => {
+    expect(getPacketColor('REQUEST', undefined, palette)).toBe('REQUEST_COLOR');
+  });
+
+  test('a RESPONSE step travels in the response colour', () => {
+    expect(getPacketColor('RESPONSE', undefined, palette)).toBe(
+      'RESPONSE_COLOR'
+    );
+  });
+
+  // The whole point of T4: the five FAILURE steps in the shipped diagrams are
+  // all RESPONSE steps, so if direction won they would be indistinguishable
+  // from a successful reply.
+  test('a failed RESPONSE step reads as a failure, not as a response', () => {
+    expect(getPacketColor('RESPONSE', 'FAILURE', palette)).toBe(
+      'FAILURE_COLOR'
+    );
+  });
+
+  test('a failed REQUEST step also reads as a failure', () => {
+    expect(getPacketColor('REQUEST', 'FAILURE', palette)).toBe('FAILURE_COLOR');
+  });
+
+  test('SUCCESS changes nothing, so it looks the same as an unmarked step', () => {
+    expect(getPacketColor('REQUEST', 'SUCCESS', palette)).toBe(
+      getPacketColor('REQUEST', undefined, palette)
+    );
+    expect(getPacketColor('RESPONSE', 'SUCCESS', palette)).toBe(
+      getPacketColor('RESPONSE', undefined, palette)
+    );
   });
 });

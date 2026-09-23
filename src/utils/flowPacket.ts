@@ -2,7 +2,35 @@
 // (src/components/SceneLayers/Connectors/ConnectorPacket.tsx) and its
 // destination-node resolution for the pulse effect. Kept separate from
 // flowPlayback.ts (playback lifecycle) since this is purely spatial math.
-import { Coords, ConnectorAnchor, FlowStepDirection } from 'src/types';
+import {
+  Coords,
+  ConnectorAnchor,
+  FlowStepDirection,
+  FlowStepOutcome
+} from 'src/types';
+
+export interface PacketPalette {
+  request: string;
+  response: string;
+  failure: string;
+}
+
+// Which colour a packet travels in. A failed step reads as a failure first:
+// `outcome` overrides `direction`, because a failed RESPONSE is a failure,
+// not an ordinary reply. SUCCESS is the default appearance and changes
+// nothing, so marking a step SUCCESS looks the same as leaving it unmarked.
+//
+// The caller supplies the three colours rather than this module reaching for
+// a theme, so the rule stays pure and testable without a DOM.
+export const getPacketColor = (
+  direction: FlowStepDirection,
+  outcome: FlowStepOutcome | undefined,
+  palette: PacketPalette
+): string => {
+  if (outcome === 'FAILURE') return palette.failure;
+
+  return direction === 'RESPONSE' ? palette.response : palette.request;
+};
 
 // A connector's tiles are stored start -> end. A REQUEST step travels that
 // same order; a RESPONSE step travels it in reverse (end -> start).
