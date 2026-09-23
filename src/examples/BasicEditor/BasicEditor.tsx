@@ -37,31 +37,13 @@ import {
   debounce,
   createRequestGuard,
   isValidDiagramName,
-  DEFAULT_DIAGRAM_NAME,
+  readStoredDiagramName,
+  writeStoredDiagramName,
   DiagramApiError,
   DiagramSummary
 } from '../persistence';
 
 const SAVE_DEBOUNCE_MS = 500;
-const CURRENT_DIAGRAM_STORAGE_KEY = 'isoflow:currentDiagram';
-
-const readStoredDiagramName = (): string => {
-  try {
-    const stored = window.localStorage.getItem(CURRENT_DIAGRAM_STORAGE_KEY);
-
-    return stored && isValidDiagramName(stored) ? stored : DEFAULT_DIAGRAM_NAME;
-  } catch (err) {
-    return DEFAULT_DIAGRAM_NAME;
-  }
-};
-
-const writeStoredDiagramName = (name: string) => {
-  try {
-    window.localStorage.setItem(CURRENT_DIAGRAM_STORAGE_KEY, name);
-  } catch (err) {
-    // Best-effort only; the picker still works without it.
-  }
-};
 
 type DialogMode = 'new' | 'duplicate' | null;
 
