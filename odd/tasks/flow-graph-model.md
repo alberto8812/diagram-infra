@@ -74,6 +74,21 @@ twice, then reconciling two different notions of "next".
   inside an unreachable group, because the step the author wrote first is the
   only record the model keeps of where they meant to begin.
 
+## Known gap carried into T3
+The reducer ignores an arrival for a step that is not active, but the hook’s
+`advance()` sends `activeSteps[0]` rather than the step whose animation
+actually finished, so the guard never fires through the running app. The same
+skip existed before this feature, so it is not a regression — but T3 is what
+makes it real, since that is where the renderer learns which packet arrived.
+
+## Open question for T4
+`next` alone can only express a fork: a step listing two successors starts
+both. The roadmap wants an alternative branch — the check fails, so go back to
+the developer — which is a choice, and nothing in the model expresses a
+condition. T4 has to decide how `outcome` selects a branch rather than running
+every branch. T2 must not assume a dead branch will ever arrive, or a join
+would wait forever for a path that was never taken.
+
 ## TDD
 Mode: off (source: prior ODD docs in this repo). Runner: jest (`npm test`).
 
@@ -90,7 +105,7 @@ its own pull request against `main`, in order, merged before the next one starts
       and a pure `resolveNextSteps(flow, stepId)` helper that falls back to array
       order when `next` is absent. Unit tests including cycles and dangling ids.
       No playback behaviour change yet.
-- [ ] T2 Reducer: `FlowPlayback` moves from `stepIndex` to an active step-id set,
+- [x] T2 Reducer: `FlowPlayback` moves from `stepIndex` to an active step-id set,
       advancing through the T1 helper. Extend `flowPlayback.test.ts`; every
       existing assertion must still hold for linear flows.
 - [ ] T3 Hook and renderer: `useFlowPlayback` exposes the active steps, and
@@ -132,9 +147,90 @@ its own pull request against `main`, in order, merged before the next one starts
       Map, since T2 will call this on every playback; and the entry comment
       still carried a paragraph describing the rule T1d replaced, contradicting
       the paragraph below it.
+- [x] T2b Review follow-ups on T2, treated as in-scope defects: one root cause
+      (`flowPlaybackReducer` trusted step ids without checking they still
+      resolve against the flow it was handed) surfacing as three symptoms.
+      ADVANCE now ignores an arrival for a step that isn't currently active
+      (a stale or duplicate arrival could otherwise restart an already-finished
+      step). PREV_STEP now filters a restored history snapshot against the
+      current flow, skipping snapshots that no longer resolve at all instead
+      of restoring dangling ids, and keeps popping until one survives or the
+      history runs out. RECONCILE's legacy call path (`FlowPlaybackReconciler.tsx`
+      via `uiStateStore.tsx`'s `reconcile` action) now passes the resolved
+      `Flow` through to the reducer, plus a precise per-step
+      `activeConnectorStepIds` list computed against every active step
+      instead of the old single-stepIndex-derived boolean, so a step deleted
+      from the model is dropped and the active set reseeds from
+      `getFlowStartSteps` when it would otherwise empty out while a flow is
+      still selected. All three fixes share one helper, `resolveKnownStepIds`
+      in `src/utils/flowPlayback.ts`, documented as the invariant the reducer
+      rests on. `stepIndex` could not be removed: `FlowPlaybackBar.tsx` (out
+      of scope) still reads it directly for its "Step N / total" label.
+      7 tests added to `flowPlayback.test.ts` (513 to 520).
+- [x] T2c Review follow-ups on T2b, treated as in-scope defects.
+      Fix 1 (WARNING, reproduced): PLAY had become a dead button whenever
+      `activeStepIds` was empty - which happens both when a list flow's run
+      finishes and when NEXT_STEP steps past the last step - regressing the
+      most common case, since every existing diagram is a list flow. PLAY now
+      restarts the flow from `getFlowStartSteps` (and clears history) when
+      the active set is empty and the flow has steps; it stays a no-op only
+      when there is no flow, or the flow has no steps. This is a deliberate
+      improvement over the pre-T2 behaviour, which replayed only the last
+      step (see the updated acceptance criterion below). 6 tests added to
+      `flowPlayback.test.ts`.
+      Fix 2 (SUGGESTION): `FlowPlaybackReconciler.tsx`'s inline
+      `activeConnectorStepIds` filter used no DOM at all despite living in an
+      untestable component, so it is now `resolveActiveConnectorStepIds` in
+      `src/utils/flow.ts`, next to `findFlowStepConnector` which it already
+      uses. The component calls it; 4 tests added to `flow.test.ts`.
+      A pre-existing test caught a real gap in Fix 1 rather than
+      contradicting it: `PLAY is a no-op when nothing is active` asserts
+      that PLAY changes nothing from an idle state, and the first restart
+      rule started steps while `flowId` was still null. PLAY now refuses to
+      restart with no flow selected, and the test passes untouched.
+      `uiStateStore.tsx`’s `play()` was also the only playback action not
+      forwarding the selected flow, so the restart could never fire through
+      the real button; `play(flow)` and the hook now pass it, matching
+      `stop`/`nextStep`/`prevStep`/`advance`.
+      Route: delegated direct, finished inline by the parent (the writer
+      stopped at the failing test, as instructed, instead of editing it).
+- [x] T2d Correction required by review `review-a459f617cf7d7ff5` (BLOCKER
+      `R3-reconcile-reseed-not-idempotent`, corrected and then confirmed by
+      its targeted validator): RECONCILE’s reseed branch returned a new
+      state object on every pass, so an entry step whose connector had been
+      deleted reseeded to the same ids forever. The reconciler derives a memo
+      from `activeStepIds`, so new identity meant new effect dependencies and
+      an endless effect/store/render loop. Reseeding now returns the state
+      untouched when nothing moved — the guard the pre-T2 code had and the
+      move to an id set dropped. Its test asserts identity across repeated
+      reconciles, since equality was exactly what the loop already satisfied.
+      Route: direct inline.
+- [x] T2e Review follow-ups on T2d, treated as in-scope defects. ADVANCE
+      pushed the last step onto the history when the run finished, so the
+      first Prev restored the step already on screen and the button appeared
+      dead; the finished run no longer pushes, which is what the pre-T2
+      behaviour did. RECONCILE stopped clamping `stepIndex`, so a finished
+      run whose flow then lost steps could leave it pointing past the end and
+      FlowPlaybackBar showing a position the flow does not have; the
+      unchanged-survivors branch clamps again, while still returning the same
+      object when nothing moved, so T2d’s loop guard holds. One T2-era test
+      pinned the history push and was updated, with the reason recorded beside
+      the assertion: it documented the deviation this finding named, not a
+      behaviour from the base. Route: direct inline.
 
 ## Acceptance criteria
-- An existing flow with no successor data plays exactly as before, step by step.
+- An existing flow with no successor data advances step by step exactly as
+  before, with one deliberate change (T2c): pressing Play after the run has
+  finished, or after NEXT_STEP has stepped past the last step, restarts the
+  flow from its entry points instead of staying a dead button. The pre-T2
+  reducer replayed only the last step (`stepIndex` was just clamped back into
+  range); T2 made an empty active set a silent no-op, which regressed the
+  most common case, since every existing diagram is a list flow. Restarting
+  from the entry points is what "play again" means for a flow that can now
+  have several entry points and several steps in flight at once, and it
+  matches what STOP and RECONCILE already do to mean "the beginning". This
+  restart also clears playback history, so PREV_STEP right after it cannot
+  jump into the finished run's snapshots.
 - A step declaring two successors starts both, and the flow continues only once
   both have arrived.
 - A FAILURE step routes to its own successors and is visually distinguishable.
@@ -151,9 +247,9 @@ T2: move the playback cursor from `stepIndex` to an active step-id set,
 advancing through `resolveNextSteps`.
 
 ## Evidence
-Measured against the final state of this branch (T1 + T1b through T1e), not an
+Measured against the final state of this branch (T1 through T2f), not an
 intermediate run:
-- `npm test`: 505 tests / 49 suites passing. The baseline on `main` is 480 / 48.
+- `npm test`: 537 tests / 49 suites passing. The baseline on `main` is 480 / 48.
 - `npx tsc --noEmit`: clean.
 - `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
   errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None
@@ -166,3 +262,21 @@ remaining follow-up inline.
 An earlier revision of this section recorded T1's numbers after T1b had already
 changed the behaviour. Verification evidence names the state it was measured
 against, or it is worse than no evidence at all.
+
+## Evidence (T2b)
+Measured against the final state of this branch (T1 through T2b):
+- `npx jest src/utils/__tests__/flowPlayback.test.ts`: 38 tests passing.
+- `npm test`: 520 tests / 49 suites passing (513 / 49 before T2b; 7 tests added,
+  no suite added or removed).
+- `npx tsc --noEmit`: clean.
+- `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
+  errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None
+  added.
+
+Route: delegated direct (writer trigger: touches 4+ files -
+`flowPlayback.ts`, `uiStateStore.tsx`, `FlowPlaybackReconciler.tsx`,
+`types/ui.ts`, plus the test file).
+
+No test was added for `FlowPlaybackReconciler.tsx` itself: `jest.config.js`
+uses `testEnvironment: "node"` (no jsdom), and this project has no existing
+component-render test setup, so a DOM-dependent test would not run.

@@ -97,20 +97,21 @@ const initialState = () => {
         setRendererEl: (el) => {
           set({ rendererEl: el });
         },
-        selectFlow: (flowId) => {
+        selectFlow: (flowId, flow) => {
           set({
-            flowPlayback: flowPlaybackReducer(get().flowPlayback, {
-              type: 'SELECT_FLOW',
-              flowId
-            })
+            flowPlayback: flowPlaybackReducer(
+              get().flowPlayback,
+              { type: 'SELECT_FLOW', flowId },
+              flow
+            )
           });
         },
-        play: (stepsLength) => {
+        play: (flow) => {
           set({
             flowPlayback: flowPlaybackReducer(
               get().flowPlayback,
               { type: 'PLAY' },
-              stepsLength
+              flow
             )
           });
         },
@@ -121,28 +122,30 @@ const initialState = () => {
             })
           });
         },
-        stop: () => {
+        stop: (flow) => {
           set({
-            flowPlayback: flowPlaybackReducer(get().flowPlayback, {
-              type: 'STOP'
-            })
+            flowPlayback: flowPlaybackReducer(
+              get().flowPlayback,
+              { type: 'STOP' },
+              flow
+            )
           });
         },
-        nextStep: (stepsLength) => {
+        nextStep: (flow) => {
           set({
             flowPlayback: flowPlaybackReducer(
               get().flowPlayback,
               { type: 'NEXT_STEP' },
-              stepsLength
+              flow
             )
           });
         },
-        prevStep: (stepsLength) => {
+        prevStep: (flow) => {
           set({
             flowPlayback: flowPlaybackReducer(
               get().flowPlayback,
               { type: 'PREV_STEP' },
-              stepsLength
+              flow
             )
           });
         },
@@ -154,21 +157,41 @@ const initialState = () => {
             })
           });
         },
-        advance: (stepsLength) => {
+        advance: (flow, stepId) => {
           set({
             flowPlayback: flowPlaybackReducer(
               get().flowPlayback,
-              { type: 'ADVANCE' },
-              stepsLength
+              { type: 'ADVANCE', stepId },
+              flow
             )
           });
         },
-        reconcile: (stepsCount, flowExists, connectorExists) => {
+        // FlowPlaybackReconciler.tsx now hands us the Flow it resolved plus
+        // the precise per-id active-connector list (T2b): the reducer can
+        // drop a step deleted from the model and reseed from
+        // getFlowStartSteps when the active set would otherwise empty out,
+        // instead of the old all-or-nothing approximation this store had to
+        // fall back to when it couldn't see the model.
+        reconcile: (
+          stepsCount,
+          flowExists,
+          activeConnectorStepIds,
+          flow,
+          checkedStepIds
+        ) => {
+          const { flowPlayback } = get();
+
           set({
             flowPlayback: flowPlaybackReducer(
-              get().flowPlayback,
-              { type: 'RECONCILE', flowExists, connectorExists },
-              stepsCount
+              flowPlayback,
+              {
+                type: 'RECONCILE',
+                flowExists,
+                stepsCount,
+                activeConnectorStepIds,
+                checkedStepIds
+              },
+              flow
             )
           });
         },
