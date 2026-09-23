@@ -1285,6 +1285,80 @@
           "label": "Deploy completo"
         }
       ]
+    },
+    {
+      "id": "flow-pr-failure",
+      "name": "3. El check del PR falla",
+      "description": "Mismo recorrido que la validacion del PR, con el check en rojo: la migracion falla contra la base descartable y el PR queda bloqueado hasta que el desarrollador corrige.",
+      "steps": [
+        {
+          "id": "fail-1",
+          "connectorId": "abc7bcca-a83c-4087-ae11-7cd7180e7ea6",
+          "direction": "REQUEST",
+          "label": "Edita el procedure"
+        },
+        {
+          "id": "fail-2",
+          "connectorId": "00bf9c45-eb50-4414-91b3-a4130af9f3a0",
+          "direction": "REQUEST",
+          "label": "git commit"
+        },
+        {
+          "id": "fail-3",
+          "connectorId": "b07b929b-4c94-4d8e-8794-9c0aaf24f441",
+          "direction": "REQUEST",
+          "label": "git push rama feature"
+        },
+        {
+          "id": "fail-4",
+          "connectorId": "0451f940-78b0-4a09-94ee-9bba8991d849",
+          "direction": "REQUEST",
+          "label": "Dispara pr-check.yml"
+        },
+        {
+          "id": "fail-5",
+          "connectorId": "7d19fd17-58c7-46eb-ae58-3c4fdd0c32b2",
+          "direction": "REQUEST",
+          "durationMs": 1600,
+          "label": "flyway migrate + tests"
+        },
+        {
+          "id": "fail-6",
+          "connectorId": "7d19fd17-58c7-46eb-ae58-3c4fdd0c32b2",
+          "direction": "RESPONSE",
+          "outcome": "FAILURE",
+          "durationMs": 1600,
+          "label": "Migracion falla"
+        },
+        {
+          "id": "fail-7",
+          "connectorId": "0451f940-78b0-4a09-94ee-9bba8991d849",
+          "direction": "RESPONSE",
+          "outcome": "FAILURE",
+          "label": "Check rojo"
+        },
+        {
+          "id": "fail-8",
+          "connectorId": "b07b929b-4c94-4d8e-8794-9c0aaf24f441",
+          "direction": "RESPONSE",
+          "outcome": "FAILURE",
+          "label": "PR bloqueado"
+        },
+        {
+          "id": "fail-9",
+          "connectorId": "00bf9c45-eb50-4414-91b3-a4130af9f3a0",
+          "direction": "RESPONSE",
+          "outcome": "FAILURE",
+          "label": "Rechazo al repo local"
+        },
+        {
+          "id": "fail-10",
+          "connectorId": "abc7bcca-a83c-4087-ae11-7cd7180e7ea6",
+          "direction": "RESPONSE",
+          "outcome": "FAILURE",
+          "label": "Falla notificada al dev"
+        }
+      ]
     }
   ],
   "icons": []
