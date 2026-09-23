@@ -40,9 +40,16 @@ export const useCurrentDiagram = (): UseCurrentDiagramResult => {
     // rejects. Giving up after a bounded wait shows the example instead of
     // nothing. Safe to do here because neither mode saves, so mounting the
     // example cannot overwrite anything.
+    //
+    // Giving up has to abandon the result too, not just the wait: Isoflow
+    // reads initialData once, at mount. Once the timeout mounts the example,
+    // a late resolution can no longer be shown — it would only hand a
+    // different object to an already-mounted canvas. So mark the run
+    // cancelled here and let the late diagram go.
     const timeout = setTimeout(() => {
       if (cancelled) return;
 
+      cancelled = true;
       setIsLoading(false);
     }, LOAD_TIMEOUT_MS);
 
