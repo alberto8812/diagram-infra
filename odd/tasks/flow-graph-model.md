@@ -81,6 +81,18 @@ actually finished, so the guard never fires through the running app. The same
 skip existed before this feature, so it is not a regression — but T3 is what
 makes it real, since that is where the renderer learns which packet arrived.
 
+## Second open question for T4
+What does `outcome: FAILURE` mark: the step that failed, or every step on the
+failure path? The schema comment says "a step that failed at runtime", but
+`flow-pr-failure` in `diagrams/infra.json` marks all five return steps, because
+the whole return is what a reader wants to see as the failure. Only one of them
+actually failed: the migration. The rest carry the news back.
+
+T4 decides this, because it is the task that renders `outcome`. Under the first
+reading one step turns red; under the second the entire return path does. The
+diagram currently encodes the second reading while the schema states the first,
+and that contradiction should be settled in one place rather than per diagram.
+
 ## Open question for T4
 `next` alone can only express a fork: a step listing two successors starts
 both. The roadmap wants an alternative branch — the check fails, so go back to
