@@ -9,6 +9,7 @@ import {
   getConnectorDirectionIcon,
   getPacketPathPoints,
   getPacketDestinationItemId,
+  getPacketColor,
   getStepDurationMs,
   getPacketLabel
 } from 'src/utils';
@@ -192,6 +193,26 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tilesKey, drawOffset]);
 
+  // The three colours a packet can travel in. `error.main` alone would not
+  // read as a failure in this theme: the RESPONSE colour is already a red
+  // (#df004c), and error red sits 10.1 deltaE from it — below what counts as
+  // a visible difference. Every FAILURE step in the shipped diagrams is a
+  // RESPONSE step, so a plain error red would have looked like no change at
+  // all. Darkening and saturating it through the repo's own colour helper
+  // pulls it clear of both existing colours (22.4 from RESPONSE, 49.4 from
+  // REQUEST) while keeping the palette's meaning of red as error.
+  const packetPalette = useMemo(() => {
+    return {
+      request: theme.palette.primary.main,
+      response: theme.palette.secondary.main,
+      failure: getColorVariant(theme.palette.error.main, 'dark', { grade: 2 })
+    };
+  }, [
+    theme.palette.primary.main,
+    theme.palette.secondary.main,
+    theme.palette.error.main
+  ]);
+
   const isPlaybackActive = flowPlayback.status !== 'IDLE';
 
   // Presentation layer: color/label/duration/speed on top of the
@@ -217,10 +238,11 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
     >((resolved, step) => {
       const points = packetPointsByDirection[step.direction];
 
-      const packetColor =
-        step.direction === 'RESPONSE'
-          ? theme.palette.secondary.main
-          : theme.palette.primary.main;
+      const packetColor = getPacketColor(
+        step.direction,
+        step.outcome,
+        packetPalette
+      );
 
       const destinationItemId = getPacketDestinationItemId(
         connector.anchors,
@@ -256,8 +278,7 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
     connector.anchors,
     connector.protocol,
     connector.port,
-    theme.palette.primary.main,
-    theme.palette.secondary.main,
+    packetPalette,
     flowPlayback.speed
   ]);
 
