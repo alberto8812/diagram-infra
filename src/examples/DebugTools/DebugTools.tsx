@@ -5,8 +5,9 @@ import { useCurrentDiagram } from '../useCurrentDiagram';
 export const DebugTools = () => {
   const { initialData, isLoading } = useCurrentDiagram();
 
-  // Mounting Isoflow before the load resolves would seed it with the example
-  // and immediately overwrite the saved diagram (see BasicEditor.tsx).
+  // Waiting avoids showing the bundled example for a frame before the real
+  // diagram replaces it. This mode never saves, so unlike BasicEditor there
+  // is nothing here that an early mount could overwrite.
   if (isLoading) return null;
 
   return <Isoflow initialData={initialData} enableDebugTools height="100%" />;

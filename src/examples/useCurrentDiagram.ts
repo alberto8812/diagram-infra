@@ -3,6 +3,11 @@ import { InitialData } from 'src/Isoflow';
 import { initialData, icons } from './initialData';
 import { loadDiagram, readStoredDiagramName } from './persistence';
 
+// How long to wait for the saved diagram before showing the example instead.
+// Generous on purpose: this only has to beat a request that will never
+// answer, not a slow one.
+const LOAD_TIMEOUT_MS = 5000;
+
 export interface UseCurrentDiagramResult {
   initialData: InitialData;
   isLoading: boolean;
@@ -30,6 +35,17 @@ export const useCurrentDiagram = (): UseCurrentDiagramResult => {
     // run and cannot be reset by another.
     let cancelled = false;
 
+    // A request that never settles would leave these modes blank for good,
+    // which the catch below cannot cover: a hung fetch neither resolves nor
+    // rejects. Giving up after a bounded wait shows the example instead of
+    // nothing. Safe to do here because neither mode saves, so mounting the
+    // example cannot overwrite anything.
+    const timeout = setTimeout(() => {
+      if (cancelled) return;
+
+      setIsLoading(false);
+    }, LOAD_TIMEOUT_MS);
+
     loadDiagram(readStoredDiagramName(), icons)
       .then((data) => {
         if (cancelled) return;
@@ -45,11 +61,13 @@ export const useCurrentDiagram = (): UseCurrentDiagramResult => {
       .finally(() => {
         if (cancelled) return;
 
+        clearTimeout(timeout);
         setIsLoading(false);
       });
 
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
     };
   }, []);
 
