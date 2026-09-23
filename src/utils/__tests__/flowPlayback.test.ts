@@ -958,6 +958,52 @@ describe('flowPlaybackReducer() works correctly', () => {
         history: []
       });
     });
+
+    // Identity, not just value: FlowPlaybackReconciler derives a memo from
+    // activeStepIds, so a fresh array for an unchanged reconcile changes the
+    // effect's dependencies and calls reconcile again, forever. An entry step
+    // whose connector was deleted reproduces it, because it drops out of the
+    // survivors on every pass and reseeds to the same id every pass.
+    test('reseeding the same entry points returns the same state object', () => {
+      const entryFlow: Flow = {
+        id: 'entry-flow',
+        name: 'Entry flow',
+        steps: [
+          buildStep({ id: 'A', next: ['B'] }),
+          buildStep({ id: 'B', next: [] })
+        ]
+      };
+      const idle: FlowPlayback = {
+        flowId: 'entry-flow',
+        status: 'IDLE',
+        activeStepIds: ['A'],
+        stepIndex: 0,
+        speed: 1,
+        history: []
+      };
+      // The entry step is still in the model, but its connector is gone, so
+      // it survives nothing and reseeds right back to itself on every pass.
+      const reconcileWithNoSurvivors = {
+        type: 'RECONCILE' as const,
+        flowExists: true,
+        stepsCount: entryFlow.steps.length,
+        activeConnectorStepIds: []
+      };
+
+      const first = flowPlaybackReducer(
+        idle,
+        reconcileWithNoSurvivors,
+        entryFlow
+      );
+      const second = flowPlaybackReducer(
+        first,
+        reconcileWithNoSurvivors,
+        entryFlow
+      );
+
+      expect(first).toBe(idle);
+      expect(second).toBe(first);
+    });
   });
 });
 

@@ -473,6 +473,24 @@ export const flowPlaybackReducer = (
         return step.id;
       });
 
+      // Reseeding has to be idempotent, not just correct. An entry step whose
+      // connector was deleted drops out of `survivingStepIds` every time,
+      // reseeds to that same entry id every time, and would hand back a new
+      // object every time. FlowPlaybackReconciler.tsx derives a memo from
+      // `activeStepIds`, so a fresh array on each pass changes the effect's
+      // dependencies, which calls reconcile again: effect, store write,
+      // re-render, forever. Returning `state` when nothing actually moved is
+      // what stops that, and it is the guard the pre-T2 code had.
+      const isUnchanged =
+        state.status === 'IDLE' &&
+        state.history.length === 0 &&
+        activeStepIds.length === state.activeStepIds.length &&
+        activeStepIds.every((id, index) => {
+          return id === state.activeStepIds[index];
+        });
+
+      if (isUnchanged) return state;
+
       return {
         ...state,
         status: 'IDLE',

@@ -227,7 +227,7 @@ advancing through `resolveNextSteps`.
 ## Evidence
 Measured against the final state of this branch (T1 through T2c), not an
 intermediate run:
-- `npm test`: 530 tests / 49 suites passing. The baseline on `main` is 480 / 48.
+- `npm test`: 531 tests / 49 suites passing. The baseline on `main` is 480 / 48.
 - `npx tsc --noEmit`: clean.
 - `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
   errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None
