@@ -87,25 +87,65 @@ no-op on a stale id is now reachable — it covers a step reconciled away
 between the packet arriving and the dispatch — so the guard was kept rather
 than duplicated in the hook.
 
-## Second open question for T4
+## Second open question for T4 — RESOLVED
 What does `outcome: FAILURE` mark: the step that failed, or every step on the
 failure path? The schema comment says "a step that failed at runtime", but
 `flow-pr-failure` in `diagrams/infra.json` marks all five return steps, because
 the whole return is what a reader wants to see as the failure. Only one of them
 actually failed: the migration. The rest carry the news back.
 
-T4 decides this, because it is the task that renders `outcome`. Under the first
-reading one step turns red; under the second the entire return path does. The
-diagram currently encodes the second reading while the schema states the first,
-and that contradiction should be settled in one place rather than per diagram.
+**Decided by the user on 2026-09-23: `outcome` marks the step it is on, and
+nothing else.** A whole path renders as failed by marking each of its steps —
+which is exactly what `flow-pr-failure` already does. Reasons:
 
-## Open question for T4
+- It composes. "Mark the step" reproduces "mark the path" with no extra code;
+  the reverse does not, since a path-wide meaning leaves no way to mark a
+  single step.
+- The path-wide reading would make a packet's colour depend on graph traversal,
+  coupling rendering to structure, and has no meaning at all in a list flow,
+  where there is no failure path to compute.
+- It costs nothing. Nothing reads `outcome` today (verified: zero consumers in
+  `src/` outside the schema and tests), so there is no behaviour to preserve
+  and no migration. The contradiction is settled in favour of the data.
+
+T4 therefore colours a packet by `step.outcome`, in the same place it already
+picks a colour from `step.direction`.
+
+## Open question for T4 — MOVED OUT OF T4
 `next` alone can only express a fork: a step listing two successors starts
 both. The roadmap wants an alternative branch — the check fails, so go back to
 the developer — which is a choice, and nothing in the model expresses a
-condition. T4 has to decide how `outcome` selects a branch rather than running
-every branch. T2 must not assume a dead branch will ever arrive, or a join
-would wait forever for a path that was never taken.
+condition.
+
+Investigated on 2026-09-23. Three findings moved this out of T4:
+
+- **The deadlock half was never open.** `advanceActiveSteps`
+  (`src/utils/flowPlayback.ts:175-203`) blocks a successor only while another
+  predecessor is in flight, and `resolveInFlight` defines in flight as
+  "currently active, or forward-reachable from something active" — never
+  "declared but not yet arrived". A branch that was never started is absent
+  from that set by construction, so it cannot block a join or keep
+  `activeStepIds` non-empty. The comment at `flowPlayback.ts:170-174` already
+  says so.
+- **No shipped diagram uses the graph model.** `"next"` appears zero times in
+  `diagrams/infra.json`; all three flows are list flows. Fork-versus-choice is
+  entirely theoretical today — nobody has authored a fork.
+- **The prior art does not transfer.** BPMN separates a parallel gateway
+  (AND-split, take all) from an exclusive gateway (XOR-split, take exactly
+  one, each outgoing flow labelled with the answer to the gateway's question);
+  UML/Mermaid `alt` does the same for success/failure. But those are STATIC
+  diagrams that draw both branches at once inside a labelled frame. Isoflow
+  animates, and an animation cannot play "exactly one of two" without someone
+  choosing which. There is no runtime here to evaluate a condition: this is a
+  diagram, not a workflow engine, and the author already knows the outcome.
+
+So the real question is not how to express a condition, but who picks the
+branch at playback time. If the author picks, it is two separate scenarios —
+which is what `flow-pr-failure` already is, and matches the "one scenario per
+diagram" practice. If the viewer picks, that is interactivity, a much larger
+feature that deserves its own decision.
+
+T4 keeps only the rendering. This stays open as its own future question.
 
 ## TDD
 Mode: off (source: prior ODD docs in this repo). Runner: jest (`npm test`).
@@ -145,6 +185,10 @@ its own pull request against `main`, in order, merged before the next one starts
       `R3-mode-gating-untested` / `R3-readonly-gating-untested`.
 - [ ] T4 Failure rendering: a step with `outcome: 'FAILURE'` renders its packet
       distinctly, reusing the existing palette rather than a hardcoded colour.
+      Unblocked on 2026-09-23: `outcome` marks its own step (see the resolved
+      question above), and branch selection is no longer part of this task.
+      Scope is now just the colour decision in `Connector.tsx`, where the
+      packet already picks a colour from `step.direction`.
 - [ ] T5 Editor UI: author successors and outcome in `FlowEditorDialog`, keeping
       the current linear add/reorder flow usable for simple cases. Must also
       make "add return path" (`buildReturnPathSteps` / `getMissingReturnPathSteps`
