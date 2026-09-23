@@ -1349,7 +1349,7 @@
           "connectorId": "00bf9c45-eb50-4414-91b3-a4130af9f3a0",
           "direction": "RESPONSE",
           "outcome": "FAILURE",
-          "label": "Estado del PR"
+          "label": "Rechazo al repo local"
         },
         {
           "id": "fail-10",
