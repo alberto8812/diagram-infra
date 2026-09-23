@@ -1,12 +1,12 @@
 {
-  "name": "isoflow",
+  "name": "diagram-infra",
   "version": "1.1.1",
   "private": false,
-  "description": "An open-source React component for drawing network diagrams.",
+  "description": "A React-based infrastructure design and diagramming tool, built on Isoflow, with typed resources, validation rules, and animated flow simulation.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/markmanx/isoflow.git"
+    "url": "https://github.com/alberto8812/diagram-infra.git"
   },
   "main": "./dist/index.js",
   "types": "./dist/Isoflow.d.ts",
