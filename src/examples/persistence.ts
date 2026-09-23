@@ -53,6 +53,29 @@ export const diagramStorageKey = (name: string): string => {
   return `isoflow:diagram:${name}`;
 };
 
+// The name of the diagram currently selected in the picker, so a reload (or
+// another mode entirely — see useCurrentDiagram.ts) can restore it instead of
+// always falling back to the first diagram.
+export const CURRENT_DIAGRAM_STORAGE_KEY = 'isoflow:currentDiagram';
+
+export const readStoredDiagramName = (): string => {
+  try {
+    const stored = window.localStorage.getItem(CURRENT_DIAGRAM_STORAGE_KEY);
+
+    return stored && isValidDiagramName(stored) ? stored : DEFAULT_DIAGRAM_NAME;
+  } catch (err) {
+    return DEFAULT_DIAGRAM_NAME;
+  }
+};
+
+export const writeStoredDiagramName = (name: string) => {
+  try {
+    window.localStorage.setItem(CURRENT_DIAGRAM_STORAGE_KEY, name);
+  } catch (err) {
+    // Best-effort only; the picker still works without it.
+  }
+};
+
 // Pure parsing of the `GET /api/diagrams` response body. Anything that isn't
 // shaped like `{ diagrams: [{ name, updatedAt }] }` is treated as empty
 // rather than thrown, since a malformed listing should degrade to "no

@@ -1,13 +1,13 @@
 import React from 'react';
 import Isoflow from 'src/Isoflow';
-import { initialData } from '../initialData';
+import { useCurrentDiagram } from '../useCurrentDiagram';
 
 export const DebugTools = () => {
-  return (
-    <Isoflow
-      initialData={{ ...initialData, fitToView: true }}
-      enableDebugTools
-      height="100%"
-    />
-  );
+  const { initialData, isLoading } = useCurrentDiagram();
+
+  // Mounting Isoflow before the load resolves would seed it with the example
+  // and immediately overwrite the saved diagram (see BasicEditor.tsx).
+  if (isLoading) return null;
+
+  return <Isoflow initialData={initialData} enableDebugTools height="100%" />;
 };

@@ -7,11 +7,14 @@ import {
   debounce,
   createRequestGuard,
   DEFAULT_DIAGRAM_NAME,
+  CURRENT_DIAGRAM_STORAGE_KEY,
   listDiagrams,
   createDiagram,
   duplicateDiagram,
   saveDiagram,
   loadDiagram,
+  readStoredDiagramName,
+  writeStoredDiagramName,
   DiagramApiError
 } from '../persistence';
 
@@ -388,5 +391,83 @@ describe('fetch wrappers', () => {
     const result = await loadDiagram('network', []);
 
     expect(result).toBeNull();
+  });
+});
+
+describe('readStoredDiagramName() / writeStoredDiagramName()', () => {
+  // jest's testEnvironment is "node": there is no global `window` unless a
+  // test provides one, so each test stubs exactly the localStorage it needs
+  // (same approach as mockFetch() above).
+  const mockLocalStorage = (impl: {
+    getItem: (key: string) => string | null;
+    setItem?: (key: string, value: string) => void;
+  }) => {
+    (global as unknown as { window: unknown }).window = {
+      localStorage: {
+        getItem: jest.fn(impl.getItem),
+        setItem: jest.fn(impl.setItem ?? (() => {}))
+      }
+    };
+  };
+
+  afterEach(() => {
+    delete (global as unknown as { window?: unknown }).window;
+  });
+
+  test('readStoredDiagramName() returns the stored name when it is valid', () => {
+    mockLocalStorage({
+      getItem: (key) => {
+        return key === CURRENT_DIAGRAM_STORAGE_KEY ? 'network' : null;
+      }
+    });
+
+    expect(readStoredDiagramName()).toBe('network');
+  });
+
+  test('readStoredDiagramName() falls back to DEFAULT_DIAGRAM_NAME for an invalid stored name', () => {
+    mockLocalStorage({
+      getItem: () => {
+        return 'Not Valid!';
+      }
+    });
+
+    expect(readStoredDiagramName()).toBe(DEFAULT_DIAGRAM_NAME);
+  });
+
+  test('readStoredDiagramName() falls back to DEFAULT_DIAGRAM_NAME when nothing is stored', () => {
+    mockLocalStorage({
+      getItem: () => {
+        return null;
+      }
+    });
+
+    expect(readStoredDiagramName()).toBe(DEFAULT_DIAGRAM_NAME);
+  });
+
+  test('readStoredDiagramName() falls back to DEFAULT_DIAGRAM_NAME when localStorage throws', () => {
+    mockLocalStorage({
+      getItem: () => {
+        throw new Error('blocked storage');
+      }
+    });
+
+    expect(readStoredDiagramName()).toBe(DEFAULT_DIAGRAM_NAME);
+  });
+
+  test('writeStoredDiagramName() writes under the expected key', () => {
+    const setItem = jest.fn();
+    mockLocalStorage({
+      getItem: () => {
+        return null;
+      },
+      setItem
+    });
+
+    writeStoredDiagramName('network');
+
+    expect(setItem).toHaveBeenCalledWith(
+      CURRENT_DIAGRAM_STORAGE_KEY,
+      'network'
+    );
   });
 });
