@@ -141,15 +141,25 @@ export const resolveNextSteps = (flow: Flow, stepId: string): FlowStep[] => {
 // sequence there is: the flow starts at its first step, or nowhere if it has
 // none.
 //
-// In a graph flow, the roots are every step that no step in the flow lists
-// as a successor. This checks every step's declared `next` (not
-// `resolveNextSteps`, which only resolves one step at a time), and preserves
-// declared array order among the roots so parallel entry points start in a
-// predictable order. If a graph flow has no roots at all — a pure cycle such
-// as A -> B -> A, where every step is someone's successor — there is nothing
-// to fall back to except the first step of the array: without this
-// fallback, playback would have nothing to start from and the flow could
-// never run.
+// In a graph flow, the entry points are the first step of the array plus
+// every root — a step that no step in the flow lists as a successor — with
+// the first step never counted twice, in array order so parallel entries
+// start predictably. This checks every step's declared `next` (not
+// `resolveNextSteps`, which only resolves one step at a time).
+//
+// Roots alone cannot express where a cyclic flow begins. A failure branch
+// that retries by pointing back at the opening step — which is the point of
+// `outcome: 'FAILURE'` — makes that step somebody's successor, so it stops
+// being a root. Such a flow has no root at all, and adding one stray step
+// that nothing points to would hand it the only root and leave the opening
+// step unreachable.
+//
+// So the entries are the roots, plus the earliest step of each group the
+// roots never reach, until every step is reachable. Array order breaks the
+// tie inside such a group, because the step the author wrote first is the
+// only record the model keeps of where they meant to begin. A step that is
+// already reachable from a root is never added, so a root pointing at the
+// first step of the array does not start it a second time.
 export const getFlowStartSteps = (flow: Flow): FlowStep[] => {
   const [firstStep] = flow.steps;
 
@@ -164,13 +174,39 @@ export const getFlowStartSteps = (flow: Flow): FlowStep[] => {
     });
   });
 
-  const roots = flow.steps.filter((step) => {
+  const entries = flow.steps.filter((step) => {
     return !successorIds.has(step.id);
   });
 
-  if (roots.length > 0) return roots;
+  // `reached` doubles as the cycle guard: a step is walked at most once, so
+  // a flow that loops back on itself terminates instead of recursing.
+  const reached = new Set<string>();
+  const walk = (step: FlowStep) => {
+    if (reached.has(step.id)) return;
 
-  return firstStep ? [firstStep] : [];
+    reached.add(step.id);
+    (step.next ?? []).forEach((nextId) => {
+      const nextStep = flow.steps.find((candidate) => {
+        return candidate.id === nextId;
+      });
+
+      if (nextStep) walk(nextStep);
+    });
+  };
+
+  entries.forEach(walk);
+
+  flow.steps.forEach((step) => {
+    if (reached.has(step.id)) return;
+
+    entries.push(step);
+    walk(step);
+  });
+
+  // Restore array order: unreachable groups were appended as they were found.
+  return flow.steps.filter((step) => {
+    return entries.includes(step);
+  });
 };
 
 // "Add return path": appends a RESPONSE step for every existing REQUEST step

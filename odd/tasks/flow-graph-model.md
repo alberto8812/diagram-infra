@@ -67,6 +67,12 @@ twice, then reconciling two different notions of "next".
   existing behaviour falls out of the general case rather than being special-cased.
 - Graph traversal lives in a pure helper so it can be tested without React, GSAP
   or the DOM, which the render layer cannot be.
+- A flow's entry points are its roots, plus the earliest step of each group the
+  roots never reach, until every step is reachable. Roots alone cannot say where
+  a cyclic flow begins, and a failure branch that retries by pointing back at the
+  opening step is exactly how a cycle appears here. Array order breaks the tie
+  inside an unreachable group, because the step the author wrote first is the
+  only record the model keeps of where they meant to begin.
 
 ## TDD
 Mode: off (source: prior ODD docs in this repo). Runner: jest (`npm test`).
@@ -112,6 +118,13 @@ its own pull request against `main`, in order, merged before the next one starts
       A pure cycle has no root, so it falls back to the first step: without
       that, a flow whose failure branch returns to an earlier step could never
       start.
+- [x] T1d Review follow-up on T1c, treated as an in-scope defect: entry points
+      are now the roots plus the earliest step of each group the roots never
+      reach. Falling back to the first step only when a flow had no root at all
+      meant that a retry cycle plus one stray step handed the entry to the
+      stray step and never ran the opening step. Route: direct inline (small
+      and fully specified; the T1c writer had stalled, so the parent finished
+      it).
 
 ## Acceptance criteria
 - An existing flow with no successor data plays exactly as before, step by step.
@@ -131,9 +144,9 @@ T2: move the playback cursor from `stepIndex` to an active step-id set,
 advancing through `resolveNextSteps`.
 
 ## Evidence
-Measured against the final state of this branch (T1 + T1b + T1c), not an
+Measured against the final state of this branch (T1 + T1b + T1c + T1d), not an
 intermediate run:
-- `npm test`: 500 tests / 49 suites passing. The baseline on `main` is 480 / 48.
+- `npm test`: 504 tests / 49 suites passing. The baseline on `main` is 480 / 48.
 - `npx tsc --noEmit`: clean.
 - `npm run lint`: the same 5 pre-existing problems as `main` (2 `import/no-cycle`
   errors in `view.ts`/`viewItem.ts`, 3 `no-console`/`no-alert` warnings). None

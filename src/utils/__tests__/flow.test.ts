@@ -409,6 +409,104 @@ describe('getFlowStartSteps() works correctly', () => {
 
     expect(getFlowStartSteps(flow)).toStrictEqual([stepA]);
   });
+
+  // The scenario this whole feature exists for: a FAILURE step retries by
+  // pointing back at the opening step, which stops being a root. One stray
+  // step then owns the only root, and with roots alone it would become the
+  // sole entry while the opening step never ran.
+  test('a retry cycle plus a stray step still starts at the opening step', () => {
+    const start: FlowStep = {
+      id: 'start',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['check']
+    };
+    const check: FlowStep = {
+      id: 'check',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['fail']
+    };
+    const fail: FlowStep = {
+      id: 'fail',
+      connectorId: 'conn3',
+      direction: 'RESPONSE',
+      outcome: 'FAILURE',
+      next: ['start']
+    };
+    const stray: FlowStep = {
+      id: 'stray',
+      connectorId: 'conn4',
+      direction: 'REQUEST'
+    };
+    const flow = makeFlow([start, check, fail, stray]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([start, stray]);
+  });
+
+  test('a root pointing at the first array step does not start it twice', () => {
+    const child: FlowStep = {
+      id: 'child',
+      connectorId: 'conn1',
+      direction: 'REQUEST'
+    };
+    const root: FlowStep = {
+      id: 'root',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['child']
+    };
+    const flow = makeFlow([child, root]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([root]);
+  });
+
+  test('two disjoint cycles each get their own entry step', () => {
+    const a1: FlowStep = {
+      id: 'a1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['a2']
+    };
+    const a2: FlowStep = {
+      id: 'a2',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['a1']
+    };
+    const b1: FlowStep = {
+      id: 'b1',
+      connectorId: 'conn3',
+      direction: 'REQUEST',
+      next: ['b2']
+    };
+    const b2: FlowStep = {
+      id: 'b2',
+      connectorId: 'conn4',
+      direction: 'REQUEST',
+      next: ['b1']
+    };
+    const flow = makeFlow([a1, a2, b1, b2]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([a1, b1]);
+  });
+
+  test('a step left unreachable by a dangling successor id becomes an entry', () => {
+    const a: FlowStep = {
+      id: 'a',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: ['missing']
+    };
+    const b: FlowStep = {
+      id: 'b',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+    const flow = makeFlow([a, b]);
+
+    expect(getFlowStartSteps(flow)).toStrictEqual([a, b]);
+  });
 });
 
 describe('buildReturnPathSteps() works correctly', () => {
