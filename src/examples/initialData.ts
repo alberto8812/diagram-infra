@@ -53,42 +53,42 @@ const cicdIcons: Icons = [
   {
     id: 'git',
     name: 'Git',
-    url: 'https://cdn.simpleicons.org/git/F05032',
+    url: 'https://cdn.simpleicons.org/git/F05032.svg',
     isIsometric: false,
     collection: 'cicd'
   },
   {
     id: 'github',
     name: 'GitHub',
-    url: 'https://cdn.simpleicons.org/github/181717',
+    url: 'https://cdn.simpleicons.org/github/181717.svg',
     isIsometric: false,
     collection: 'cicd'
   },
   {
     id: 'gh-actions',
     name: 'GitHub Actions',
-    url: 'https://cdn.simpleicons.org/githubactions/2088FF',
+    url: 'https://cdn.simpleicons.org/githubactions/2088FF.svg',
     isIsometric: false,
     collection: 'cicd'
   },
   {
     id: 'flyway',
     name: 'Flyway',
-    url: 'https://cdn.simpleicons.org/flyway/CC0000',
+    url: 'https://cdn.simpleicons.org/flyway/CC0000.svg',
     isIsometric: false,
     collection: 'cicd'
   },
   {
     id: 'mysql',
     name: 'MySQL',
-    url: 'https://cdn.simpleicons.org/mysql/4479A1',
+    url: 'https://cdn.simpleicons.org/mysql/4479A1.svg',
     isIsometric: false,
     collection: 'cicd'
   },
   {
     id: 'terraform',
     name: 'Terraform',
-    url: 'https://cdn.simpleicons.org/terraform/844FBA',
+    url: 'https://cdn.simpleicons.org/terraform/844FBA.svg',
     isIsometric: false,
     collection: 'cicd'
   },
@@ -118,7 +118,11 @@ const simpleIcon = (
   return {
     id: slug,
     name,
-    url: `https://cdn.simpleicons.org/${slug}`,
+    // The `.svg` is required, not decorative: dom-to-image reads an image's
+    // media type from the URL's extension, not from the response header, so
+    // an extensionless URL becomes `data:;base64,...` - which then fails to
+    // load and takes the whole image export down with it.
+    url: `https://cdn.simpleicons.org/${slug}.svg`,
     isIsometric: false,
     collection
   };
