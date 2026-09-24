@@ -1067,4 +1067,18 @@ describe('buildFlowStepUpdates() works correctly', () => {
       buildFlowStepUpdates('conn1', 'REQUEST', 'Ack', '1500').durationMs
     ).toBe(1500);
   });
+
+  // `durationMs` is `z.number().int().positive().optional()` in
+  // src/schemas/flow.ts, so a positive decimal is still invalid data. Without
+  // this case the integer rule is unguarded: dropping it leaves every other
+  // test green while 1.5 reaches the model.
+  test('clears durationMs when it is positive but not a whole number', () => {
+    expect(
+      buildFlowStepUpdates('conn1', 'REQUEST', 'Ack', '1.5').durationMs
+    ).toBeUndefined();
+
+    expect(
+      buildFlowStepUpdates('conn1', 'REQUEST', 'Ack', '1500.25').durationMs
+    ).toBeUndefined();
+  });
 });
