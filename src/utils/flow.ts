@@ -338,6 +338,36 @@ export const buildReturnPathSteps = (
     });
 };
 
+export interface ParsedDurationInput {
+  isValid: boolean;
+  durationMs: number | undefined;
+}
+
+// The one place that decides what a raw duration field value means, shared
+// by `buildFlowStepUpdates` below and the flow editor's own validation
+// (FlowEditorDialog.tsx), so "what counts as a valid duration" cannot drift
+// between the two. Trimmed first, so a whitespace-only value is treated the
+// same as an empty one. An empty value is valid and means "clear the
+// duration" — it is not the same thing as an invalid one, which must be
+// reported as invalid rather than silently treated as "clear" (that
+// conflation used to let an invalid edit like "1.5" erase a stored duration
+// instead of being rejected). Anything else must parse to a positive whole
+// number to be valid — `durationMs` is
+// `z.number().int().positive().optional()` (src/schemas/flow.ts), so a
+// decimal, zero, negative, or non-numeric value is invalid.
+export const parseDurationInput = (value: string): ParsedDurationInput => {
+  const trimmed = value.trim();
+
+  if (trimmed === '') return { isValid: true, durationMs: undefined };
+
+  const parsed = Number(trimmed);
+  const isValid = Number.isInteger(parsed) && parsed > 0;
+
+  return isValid
+    ? { isValid: true, durationMs: parsed }
+    : { isValid: false, durationMs: undefined };
+};
+
 // Builds the partial update `updateFlowStep` shallow-merges into an
 // existing step (`{ ...step.value, ...updates }`, see
 // src/stores/reducers/flow.ts) from the four raw values the flow editor's
@@ -349,10 +379,11 @@ export const buildReturnPathSteps = (
 // Because the merge is shallow, an omitted key would leave the step's
 // existing value in place instead of clearing it, so both optional fields
 // are always present in the result. An empty label explicitly clears
-// `label` (set to `undefined`, not omitted), and an empty, non-numeric, or
-// non-positive duration explicitly clears `durationMs` rather than writing
-// `NaN` or `0` — `durationMs` is `z.number().int().positive().optional()`
-// (src/schemas/flow.ts), so neither would be valid data.
+// `label` (set to `undefined`, not omitted). Duration is delegated to
+// `parseDurationInput` — the caller (FlowEditorDialog.tsx) is expected to
+// have already rejected an invalid value before this is ever called, so
+// here an invalid value degrades to "clear" the same way it always has,
+// rather than this function trying to report the invalidity itself.
 export const buildFlowStepUpdates = (
   connectorId: string,
   direction: FlowStepDirection,
@@ -364,10 +395,6 @@ export const buildFlowStepUpdates = (
   // copy that drifts — which is how the trim and the whole-number check came
   // to disagree between adding and editing in the first place.
 ): Omit<FlowStep, 'id'> => {
-  const parsedDuration = Number(durationMs);
-  const isValidDuration =
-    durationMs !== '' && Number.isInteger(parsedDuration) && parsedDuration > 0;
-
   return {
     connectorId,
     direction,
@@ -376,8 +403,31 @@ export const buildFlowStepUpdates = (
     // so a whitespace duration is already treated as absent, while a
     // whitespace label would survive as an invisible value on the step.
     label: label.trim() || undefined,
-    durationMs: isValidDuration ? parsedDuration : undefined
+    durationMs: parseDurationInput(durationMs).durationMs
   };
+};
+
+// The rule that keeps a step being edited editable: the picker lists the
+// current view's connectors, but a step being edited may travel a connector
+// that belongs to another view. Leaving that one out would make the step
+// uneditable — the connector selection would blank and the disabled Save
+// button would lock the form, so its label and duration could not be
+// changed either. The edited connector is not a new choice the user is
+// making — the step already travels it — so it belongs in the list while
+// that step is open for editing. Returns `connectors` unchanged (same
+// reference) when there is nothing to add, so callers that memoize on
+// reference equality don't re-render for no reason.
+export const resolvePickableConnectors = (
+  connectors: Connector[],
+  editedConnector: Connector | undefined
+): Connector[] => {
+  if (!editedConnector) return connectors;
+
+  const alreadyListed = connectors.some((connector) => {
+    return connector.id === editedConnector.id;
+  });
+
+  return alreadyListed ? connectors : [...connectors, editedConnector];
 };
 
 // Two return-path steps are "the same hop" when they cover the same
