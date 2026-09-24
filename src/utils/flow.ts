@@ -3,7 +3,14 @@
 // resolving a step's successors in the flow graph, and building the "add
 // return path" convenience (RESPONSE steps mirroring the existing REQUEST
 // steps, in reverse order).
-import { Connector, Flow, FlowStep, ModelItem, View } from 'src/types';
+import {
+  Connector,
+  Flow,
+  FlowStep,
+  FlowStepDirection,
+  ModelItem,
+  View
+} from 'src/types';
 
 // A flow step only stores a `connectorId`; the connector itself lives in
 // whichever view still has it. Shared by src/hooks/useFlowPlayback.ts (per
@@ -329,6 +336,39 @@ export const buildReturnPathSteps = (
           : {})
       };
     });
+};
+
+// Builds the partial update `updateFlowStep` shallow-merges into an
+// existing step (`{ ...step.value, ...updates }`, see
+// src/stores/reducers/flow.ts) from the four raw values the flow editor's
+// form holds while editing a step. Pure and DOM-free so this — the only
+// subtle part of editing a step — can be unit tested without any
+// component-rendering infrastructure (this repo has none; jest's
+// testEnvironment is "node").
+//
+// Because the merge is shallow, an omitted key would leave the step's
+// existing value in place instead of clearing it, so both optional fields
+// are always present in the result. An empty label explicitly clears
+// `label` (set to `undefined`, not omitted), and an empty, non-numeric, or
+// non-positive duration explicitly clears `durationMs` rather than writing
+// `NaN` or `0` — `durationMs` is `z.number().int().positive().optional()`
+// (src/schemas/flow.ts), so neither would be valid data.
+export const buildFlowStepUpdates = (
+  connectorId: string,
+  direction: FlowStepDirection,
+  label: string,
+  durationMs: string
+): Partial<Omit<FlowStep, 'id'>> => {
+  const parsedDuration = Number(durationMs);
+  const isValidDuration =
+    durationMs !== '' && Number.isInteger(parsedDuration) && parsedDuration > 0;
+
+  return {
+    connectorId,
+    direction,
+    label: label || undefined,
+    durationMs: isValidDuration ? parsedDuration : undefined
+  };
 };
 
 // Two return-path steps are "the same hop" when they cover the same

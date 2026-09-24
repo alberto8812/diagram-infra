@@ -21,11 +21,16 @@ import {
 import {
   Add as AddIcon,
   DeleteOutlined as DeleteIcon,
+  EditOutlined as EditIcon,
   KeyboardArrowUp as UpIcon,
   KeyboardArrowDown as DownIcon,
   Reply as ReturnPathIcon
 } from '@mui/icons-material';
-import { FlowStepDirection, flowStepDirectionOptions } from 'src/types';
+import {
+  FlowStep,
+  FlowStepDirection,
+  flowStepDirectionOptions
+} from 'src/types';
 import { useModelStore } from 'src/stores/modelStore';
 import { useUiStateStore } from 'src/stores/uiStateStore';
 import { useScene } from 'src/hooks/useScene';
@@ -33,7 +38,8 @@ import {
   generateId,
   getConnectorEndpointLabel,
   getMissingReturnPathSteps,
-  findFlowStepConnector
+  findFlowStepConnector,
+  buildFlowStepUpdates
 } from 'src/utils';
 
 interface Props {
@@ -74,6 +80,7 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     updateFlow,
     deleteFlow,
     createFlowStep,
+    updateFlowStep,
     deleteFlowStep,
     reorderFlowSteps
   } = useScene();
@@ -119,6 +126,35 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     useState<FlowStepDirection>('REQUEST');
   const [newLabel, setNewLabel] = useState('');
   const [newDurationMs, setNewDurationMs] = useState('');
+
+  // `null` means the form below is in "add" mode; a step id means it is
+  // editing that step instead. The four fields above are shared between
+  // both modes — there is only ever one form.
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingStepId(null);
+    setNewConnectorId('');
+    setNewDirection('REQUEST');
+    setNewLabel('');
+    setNewDurationMs('');
+  }, []);
+
+  // Switching flows must not leave a stale edit target (and its populated
+  // form) pointing at a step that belongs to a different flow.
+  useEffect(() => {
+    handleCancelEdit();
+  }, [selectedFlowId, handleCancelEdit]);
+
+  const handleStartEdit = useCallback((step: FlowStep) => {
+    setEditingStepId(step.id);
+    setNewConnectorId(step.connectorId);
+    setNewDirection(step.direction);
+    setNewLabel(step.label ?? '');
+    setNewDurationMs(
+      step.durationMs !== undefined ? String(step.durationMs) : ''
+    );
+  }, []);
 
   // The "Add step" picker is scoped to the current view's connectors (see
   // the helper text next to it below), so if the selected connector falls
@@ -169,6 +205,41 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     connectors,
     createFlowStep
   ]);
+
+  const handleSaveStep = useCallback(() => {
+    if (!selectedFlow || !editingStepId || !newConnectorId) return;
+
+    // Same defense in depth as handleAddStep above.
+    const connectorExists = connectors.some((connector) => {
+      return connector.id === newConnectorId;
+    });
+    if (!connectorExists) return;
+
+    updateFlowStep(
+      selectedFlow.id,
+      editingStepId,
+      buildFlowStepUpdates(
+        newConnectorId,
+        newDirection,
+        newLabel,
+        newDurationMs
+      )
+    );
+
+    handleCancelEdit();
+  }, [
+    selectedFlow,
+    editingStepId,
+    newConnectorId,
+    newDirection,
+    newLabel,
+    newDurationMs,
+    connectors,
+    updateFlowStep,
+    handleCancelEdit
+  ]);
+
+  const handleSubmitStep = editingStepId ? handleSaveStep : handleAddStep;
 
   const requestStepsCount = useMemo(() => {
     return (selectedFlow?.steps ?? []).filter((step) => {
@@ -310,7 +381,12 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
                         <ListItem
                           key={step.id}
                           disablePadding
-                          sx={{ py: 0.5 }}
+                          sx={{
+                            py: 0.5,
+                            ...(editingStepId === step.id
+                              ? { bgcolor: 'action.selected' }
+                              : {})
+                          }}
                           secondaryAction={
                             <Stack direction="row" spacing={0.5}>
                               <IconButton
@@ -344,6 +420,21 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
                               <IconButton
                                 size="small"
                                 onClick={() => {
+                                  handleStartEdit(step);
+                                }}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  // Deleting the step currently being edited
+                                  // must leave the form in add mode instead
+                                  // of pointing at a step that no longer
+                                  // exists.
+                                  if (editingStepId === step.id) {
+                                    handleCancelEdit();
+                                  }
                                   deleteFlowStep(selectedFlow.id, step.id);
                                 }}
                               >
@@ -384,7 +475,7 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
                     color="text.secondary"
                     textTransform="uppercase"
                   >
-                    Add step
+                    {editingStepId ? 'Edit step' : 'Add step'}
                   </Typography>
 
                   <Typography variant="caption" color="text.secondary">
@@ -452,16 +543,22 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
                     />
                   </Stack>
 
-                  <Box>
+                  <Stack direction="row" spacing={1}>
                     <Button
                       size="small"
-                      startIcon={<AddIcon />}
+                      startIcon={editingStepId ? undefined : <AddIcon />}
                       disabled={!newConnectorId}
-                      onClick={handleAddStep}
+                      onClick={handleSubmitStep}
                     >
-                      Add step
+                      {editingStepId ? 'Save changes' : 'Add step'}
                     </Button>
-                  </Box>
+
+                    {editingStepId && (
+                      <Button size="small" onClick={handleCancelEdit}>
+                        Cancel
+                      </Button>
+                    )}
+                  </Stack>
                 </Stack>
               </Stack>
             )}
