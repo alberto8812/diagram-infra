@@ -240,11 +240,30 @@ its own pull request against `main`, in order, merged before the next one starts
       always backfilling fails the already-a-graph test; removing without
       repair fails the chain test.
 
-      **Still open: the "add return path" half above.** `buildReturnPathSteps`
-      generates steps with no `next`, so in a graph flow they are all terminal
-      and the return path does not chain. It takes a bare step array and never
-      asks whether the flow is a graph, so emitting `next` unconditionally
-      would flip every list flow the button is used on.
+      **A separate "add return path" defect, found and fixed on 2026-09-24**
+      (PR #34, commit `d9f492c`), while reviewing a real diagram: clicking the
+      button on a flow that already had a complete return path appended three
+      duplicates. `getMissingReturnPathSteps` matched by POSITION —
+      `candidate[i]` against `existing[i]`, stopping at the first difference —
+      and `buildReturnPathSteps` skips async connectors, so a return path
+      carrying a hop for one is longer than the candidate list. Everything
+      after the extra hop mismatched by position and came back as missing,
+      although all of it was already there. Each candidate now claims one
+      existing hop, and a claimed hop cannot be claimed twice, so position
+      stops mattering while a connector genuinely travelled twice still gets
+      both hops. Mutation-verified: the old prefix walk fails the two new
+      tests.
+
+      **Still open, and NOT what that fix addressed: the successors half.**
+      `buildReturnPathSteps` still generates steps with no `next` — see its
+      return shape — so in a graph flow every generated step is terminal and
+      the return path does not chain. The duplication bug above was about
+      which steps get generated; this is about what they carry. It takes a
+      bare step array and never asks whether the flow is a graph, so emitting
+      `next` unconditionally would flip every list flow the button is used on.
+
+      (Recorded here because the two were briefly conflated: fixing the
+      duplication does not close T5.)
 
       Not covered: no test renders the dialog. The controls, the disabled
       reorder and the touched-flag guard are verified by reading the code.
