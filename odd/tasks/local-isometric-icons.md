@@ -52,8 +52,9 @@ checks the URL prefix, so the 404s went unnoticed.
       `src/examples/initialData.ts` rewritten to build every icon through
       `brandIcon()` + `src/examples/__tests__/icons.test.ts` and
       `src/examples/__tests__/initialData.test.ts` updated.
-- [ ] T3 Verify: full jest suite, typecheck, production build; push the
-      branch. Route: inline.
+- [x] T3 Verify: full jest suite, typecheck, production build; push the
+      branch. Route: inline. Commits c641be9 (generator) and f39a26d
+      (bundled icons). Pushed to origin/fix/local-isometric-icons.
 
 ## T1/T2 design notes
 - Geometry mirrors the existing runtime-composed block
@@ -108,6 +109,29 @@ to push the branch. PR creation remains the user's decision.
 ## Progress
 - Branch created. Root cause confirmed with curl (`/nginx.svg` returns 404,
   `/nginx` returns 200).
+- Writer checks: `npm test` 55 suites / 656 tests passed; `npx tsc --noEmit`
+  clean; `npm run build` exit 0; `npm run lint` shows only pre-existing
+  import/no-cycle errors in view reducers.
+- Parent spot check: icon test suites re-run (73 tests passed) and a preview
+  of 8 icons rendered and inspected.
+- Review (RDD, high risk, 4 lenses, consent granted): approved and
+  acknowledged, lineage review-6f610e7db193351d.
+
+## Follow-ups (non-blocking review advisories)
+- The generator exits 0 and calls any missing slug "expected". It should fail
+  instead, because a missing slug is a regression.
+- `brandIcon()` throws while the module loads, so one missing entry stops the
+  whole icon set from loading. Consider a monogram fallback with a warning
+  instead.
+- There are stale comments: `FALLBACK_IDS` should be `MONOGRAM_FALLBACKS`,
+  and the "worked numbers" test reference points at nothing.
+- The option `padding` is really the logo width fraction; rename it to
+  `logoWidthFraction`.
+- The near-black test does not assert the lift for `#181717`.
+- The collection and id lists are duplicated across the generator and the
+  tests.
+- Visual: the side faces of near-black blocks (GitHub, Anthropic) have a
+  reddish tint.
 
 ## Next step
-T1 + T2 via one delegated writer.
+Open a PR (the user decides), then address the follow-ups.
