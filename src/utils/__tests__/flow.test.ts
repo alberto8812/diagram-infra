@@ -1110,6 +1110,28 @@ describe('buildFlowStepUpdates() works correctly', () => {
 });
 
 describe('parseDurationInput() works correctly', () => {
+  // The upper boundary from the accepting side. Every large-input case below
+  // asserts a rejection, so a regression that refused valid large values
+  // would leave them all green.
+  test('the largest safe integer is still accepted', () => {
+    expect(parseDurationInput(String(Number.MAX_SAFE_INTEGER))).toStrictEqual({
+      isValid: true,
+      durationMs: Number.MAX_SAFE_INTEGER
+    });
+  });
+
+  // A leading zero is allowed on purpose, and this pins that decision. `05`
+  // and `5` name the same number in the same base — it is a normalisation.
+  // The rejected cases below are reinterpretations: another base, another
+  // notation, or a value the field cannot hold, each of which reads back as
+  // something else entirely.
+  test('a leading zero is accepted and normalised', () => {
+    expect(parseDurationInput('05')).toStrictEqual({
+      isValid: true,
+      durationMs: 5
+    });
+  });
+
   test('an empty string is valid and clears the duration', () => {
     expect(parseDurationInput('')).toStrictEqual({
       isValid: true,
@@ -1150,6 +1172,29 @@ describe('parseDurationInput() works correctly', () => {
 
   test('zero is invalid', () => {
     expect(parseDurationInput('0')).toStrictEqual({
+      isValid: false,
+      durationMs: undefined
+    });
+  });
+
+  // Everything `Number` would silently reinterpret. `0x10`, `0b11` and `1e3`
+  // become 16, 3 and 1000; `+5` and `5.` become 5; `1.0` becomes 1. Each
+  // stores a value the user did not type, so each is refused the same way a
+  // decimal already was. Asserting the whole result, like the tests above,
+  // pins the rejection shape too — not just that it was rejected.
+  test.each([
+    ['hexadecimal', '0x10'],
+    ['binary', '0b11'],
+    ['exponent notation', '1e3'],
+    ['a leading plus sign', '+5'],
+    ['a trailing dot', '5.'],
+    ['a zero fraction', '1.0'],
+    // All digits, but past what a number can hold: 309 nines overflow to
+    // Infinity, and one above MAX_SAFE_INTEGER comes back as 9007199254740992.
+    ['a digit string that overflows to Infinity', '9'.repeat(309)],
+    ['a digit string past MAX_SAFE_INTEGER', '9007199254740993']
+  ])('%s is invalid', (_name, input) => {
+    expect(parseDurationInput(input)).toStrictEqual({
       isValid: false,
       durationMs: undefined
     });

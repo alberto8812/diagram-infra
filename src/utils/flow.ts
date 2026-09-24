@@ -361,7 +361,22 @@ export const parseDurationInput = (value: string): ParsedDurationInput => {
   if (trimmed === '') return { isValid: true, durationMs: undefined };
 
   const parsed = Number(trimmed);
-  const isValid = Number.isInteger(parsed) && parsed > 0;
+
+  // Three conditions, all guarding the same thing: the field should read back
+  // what was written, or say why it cannot.
+  //
+  // Digits only, because `Number` alone also reads `0x10`, `0b11` and `1e3`
+  // as 16, 3 and 1000 — a value the user never typed, stored without a word,
+  // while a decimal like `1.5` is refused with a message.
+  //
+  // Safe integer, because digits alone can still name a number this cannot
+  // hold: 309 nines overflow to Infinity (which `JSON.stringify` writes as
+  // `null`), and anything past MAX_SAFE_INTEGER comes back as a nearby value
+  // instead of the one typed.
+  //
+  // Positive, because the schema says so (`z.number().int().positive()`).
+  const isValid =
+    /^\d+$/.test(trimmed) && Number.isSafeInteger(parsed) && parsed > 0;
 
   return isValid
     ? { isValid: true, durationMs: parsed }
