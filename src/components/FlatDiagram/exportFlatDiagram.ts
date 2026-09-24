@@ -3,6 +3,13 @@ import { downloadFile } from 'src/utils/exportOptions';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
+const XMLNS_NAMESPACE = 'http://www.w3.org/2000/xmlns/';
+
+// White space added on every side of an exported file. The live diagram is
+// sized to its content, so without it the outermost groups and labels touch
+// the image edges. The same margin on all four sides also keeps the diagram
+// centred in the file.
+export const FLAT_DIAGRAM_EXPORT_MARGIN = 48;
 
 // A filename dedicated to this view, so a downloaded file is recognisable in
 // a Downloads folder next to the isometric export's `isoflow-export-*`
@@ -54,15 +61,35 @@ const readSvgDimensions = (
 //   - an explicit font-family, since the live text inherits the page's font
 //     (set globally via MUI/CSS) rather than declaring one itself, and a
 //     file opened outside the app has no such page to inherit from.
-export const serializeFlatDiagramSvg = (svg: SVGSVGElement): string => {
-  const clone = svg.cloneNode(true) as SVGSVGElement;
+// The exported file's size: the diagram plus the margin on every side.
+const readExportDimensions = (
+  svg: SVGSVGElement
+): { width: number; height: number } => {
   const { width, height } = readSvgDimensions(svg);
 
-  clone.setAttribute('xmlns', SVG_NAMESPACE);
-  clone.setAttribute('xmlns:xlink', XLINK_NAMESPACE);
+  return {
+    width: width + FLAT_DIAGRAM_EXPORT_MARGIN * 2,
+    height: height + FLAT_DIAGRAM_EXPORT_MARGIN * 2
+  };
+};
+
+export const serializeFlatDiagramSvg = (svg: SVGSVGElement): string => {
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  const { width, height } = readExportDimensions(svg);
+  const margin = FLAT_DIAGRAM_EXPORT_MARGIN;
+
+  // XMLSerializer already writes `xmlns` for an element in the SVG
+  // namespace. Setting it again as a plain attribute makes the serializer
+  // emit it twice, which is invalid XML that strict viewers refuse to open.
+  // The xlink declaration is not added automatically, so it goes in the
+  // xmlns namespace, where the serializer treats it as a declaration.
+  clone.setAttributeNS(XMLNS_NAMESPACE, 'xmlns:xlink', XLINK_NAMESPACE);
   clone.setAttribute('width', String(width));
   clone.setAttribute('height', String(height));
-  clone.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  // Starting the viewBox at -margin adds the margin around the content
+  // without moving any of it: the diagram's own coordinates stay as they
+  // are, and the extra space is split evenly on both sides.
+  clone.setAttribute('viewBox', `${-margin} ${-margin} ${width} ${height}`);
 
   // A presentation attribute on the root, rather than a <style> element:
   // every text/tspan in this diagram sets no font-family of its own (see
@@ -70,8 +97,8 @@ export const serializeFlatDiagramSvg = (svg: SVGSVGElement): string => {
   clone.setAttribute('font-family', DEFAULT_FONT_FAMILY);
 
   const background = clone.ownerDocument.createElementNS(SVG_NAMESPACE, 'rect');
-  background.setAttribute('x', '0');
-  background.setAttribute('y', '0');
+  background.setAttribute('x', String(-margin));
+  background.setAttribute('y', String(-margin));
   background.setAttribute('width', String(width));
   background.setAttribute('height', String(height));
   background.setAttribute('fill', '#ffffff');
@@ -102,7 +129,7 @@ export const downloadFlatDiagramPng = (
   scale = 2
 ): Promise<void> => {
   const serialized = serializeFlatDiagramSvg(svg);
-  const { width, height } = readSvgDimensions(svg);
+  const { width, height } = readExportDimensions(svg);
   const svgBlob = new Blob([serialized], {
     type: 'image/svg+xml;charset=utf-8'
   });
@@ -111,35 +138,47 @@ export const downloadFlatDiagramPng = (
   return new Promise<void>((resolve, reject) => {
     const image = new Image();
 
+    // Both callbacks run outside the Promise executor, so a synchronous
+    // throw inside them would never reach `reject` and the promise would
+    // never settle, leaving the dialog's buttons disabled. Each one catches
+    // and rejects explicitly instead.
     image.onload = () => {
       URL.revokeObjectURL(objectUrl);
 
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(width * scale));
-      canvas.height = Math.max(1, Math.round(height * scale));
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
 
-      const context = canvas.getContext('2d');
-      if (!context) {
-        reject(new Error('Could not get a 2D canvas context'));
-        return;
-      }
-
-      // The rasterised <image> content is opaque already (see the
-      // serialized background rect), but this guards against a browser
-      // that draws a transparent canvas before the image finishes.
-      context.fillStyle = '#ffffff';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Could not generate PNG image data'));
+        const context = canvas.getContext('2d');
+        if (!context) {
+          reject(new Error('Could not get a 2D canvas context'));
           return;
         }
 
-        downloadFile(blob, generateFlatDiagramFilename('png'));
-        resolve();
-      }, 'image/png');
+        // The rasterised <image> content is opaque already (see the
+        // serialized background rect), but this guards against a browser
+        // that draws a transparent canvas before the image finishes.
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob((blob) => {
+          try {
+            if (!blob) {
+              reject(new Error('Could not generate PNG image data'));
+              return;
+            }
+
+            downloadFile(blob, generateFlatDiagramFilename('png'));
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        }, 'image/png');
+      } catch (error) {
+        reject(error);
+      }
     };
 
     // Mirrors `describeExportError`'s handling of a failed image load: the

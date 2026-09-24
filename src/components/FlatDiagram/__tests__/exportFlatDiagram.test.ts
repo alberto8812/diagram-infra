@@ -7,7 +7,8 @@ import { downloadFile } from 'src/utils/exportOptions';
 import {
   serializeFlatDiagramSvg,
   downloadFlatDiagramSvg,
-  downloadFlatDiagramPng
+  downloadFlatDiagramPng,
+  FLAT_DIAGRAM_EXPORT_MARGIN
 } from '../exportFlatDiagram';
 
 // `downloadFile` (FileSaver under the hood) has nothing useful to observe in
@@ -53,6 +54,16 @@ describe('serializeFlatDiagramSvg', () => {
     expect(result).toContain('xmlns:xlink="http://www.w3.org/1999/xlink"');
   });
 
+  test('produces well-formed XML, with each namespace declared once', () => {
+    const svg = buildSampleSvg();
+
+    const result = serializeFlatDiagramSvg(svg);
+    const doc = new DOMParser().parseFromString(result, 'image/svg+xml');
+
+    expect(doc.getElementsByTagName('parsererror')).toHaveLength(0);
+    expect(result.match(/xmlns="/g)).toHaveLength(1);
+  });
+
   test('injects a white background rect and an explicit font-family', () => {
     const svg = buildSampleSvg();
 
@@ -60,6 +71,26 @@ describe('serializeFlatDiagramSvg', () => {
 
     expect(result).toContain('fill="#ffffff"');
     expect(result).toContain(`font-family="${DEFAULT_FONT_FAMILY}"`);
+  });
+
+  test('adds an even margin on every side, keeping the diagram centred', () => {
+    const svg = buildSampleSvg();
+    const margin = FLAT_DIAGRAM_EXPORT_MARGIN;
+
+    const result = serializeFlatDiagramSvg(svg);
+    const doc = new DOMParser().parseFromString(result, 'image/svg+xml');
+    const root = doc.documentElement;
+    const background = root.firstElementChild as Element;
+
+    expect(root.getAttribute('width')).toBe(String(120 + margin * 2));
+    expect(root.getAttribute('height')).toBe(String(80 + margin * 2));
+    expect(root.getAttribute('viewBox')).toBe(
+      `${-margin} ${-margin} ${120 + margin * 2} ${80 + margin * 2}`
+    );
+    expect(background.getAttribute('x')).toBe(String(-margin));
+    expect(background.getAttribute('y')).toBe(String(-margin));
+    expect(background.getAttribute('width')).toBe(String(120 + margin * 2));
+    expect(background.getAttribute('height')).toBe(String(80 + margin * 2));
   });
 
   test('keeps the original content', () => {
@@ -186,7 +217,8 @@ describe('downloadFlatDiagramPng', () => {
 
     await downloadFlatDiagramPng(svg, 2);
 
-    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 240, 160);
+    // (120 + 2 * 48) x (80 + 2 * 48) at 2x: the export margin is included.
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 432, 352);
     expect(downloadFile).toHaveBeenCalledTimes(1);
     const [blob, filename] = (downloadFile as jest.Mock).mock.calls[0];
 
@@ -204,6 +236,17 @@ describe('downloadFlatDiagramPng', () => {
     const svg = buildSampleSvg();
 
     await expect(downloadFlatDiagramPng(svg)).rejects.toBeDefined();
+    expect(downloadFile).not.toHaveBeenCalled();
+  });
+
+  test('rejects instead of hanging when drawing onto the canvas throws', async () => {
+    drawImage.mockImplementation(() => {
+      throw new Error('draw failed');
+    });
+
+    const svg = buildSampleSvg();
+
+    await expect(downloadFlatDiagramPng(svg)).rejects.toThrow('draw failed');
     expect(downloadFile).not.toHaveBeenCalled();
   });
 });
