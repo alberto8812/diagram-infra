@@ -118,7 +118,11 @@ export const DialogTypeEnum = {
   FLOW_EDITOR: 'FLOW_EDITOR',
   ISSUES: 'ISSUES',
   SECURITY_REPORT: 'SECURITY_REPORT',
-  COST_REPORT: 'COST_REPORT'
+  COST_REPORT: 'COST_REPORT',
+  // Read-only flat/architecture diagram view (see src/components/FlatDiagram)
+  // — a separate rendering of the current view's items/connectors, not an
+  // export. Additive: does not touch the isometric rendering pipeline.
+  FLAT_DIAGRAM: 'FLAT_DIAGRAM'
 } as const;
 
 export interface ContextMenu {

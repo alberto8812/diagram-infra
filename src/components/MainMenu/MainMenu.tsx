@@ -7,7 +7,8 @@ import {
   DataObject as ExportJsonIcon,
   ImageOutlined as ExportImageIcon,
   FolderOpen as FolderOpenIcon,
-  DeleteOutline as DeleteOutlineIcon
+  DeleteOutline as DeleteOutlineIcon,
+  AccountTreeOutlined as FlatDiagramIcon
 } from '@mui/icons-material';
 import { UiElement } from 'src/components/UiElement/UiElement';
 import { IconButton } from 'src/components/IconButton/IconButton';
@@ -84,6 +85,11 @@ export const MainMenu = () => {
     uiStateActions.setDialog('EXPORT_IMAGE');
   }, [uiStateActions]);
 
+  const onOpenFlatDiagram = useCallback(() => {
+    uiStateActions.setIsMainMenuOpen(false);
+    uiStateActions.setDialog('FLAT_DIAGRAM');
+  }, [uiStateActions]);
+
   const { clear } = initialDataManager;
 
   const onClearCanvas = useCallback(() => {
@@ -148,6 +154,12 @@ export const MainMenu = () => {
           {mainMenuOptions.includes('EXPORT.PNG') && (
             <MenuItem onClick={onExportAsImage} Icon={<ExportImageIcon />}>
               Export as image
+            </MenuItem>
+          )}
+
+          {mainMenuOptions.includes('VIEW.FLAT_DIAGRAM') && (
+            <MenuItem onClick={onOpenFlatDiagram} Icon={<FlatDiagramIcon />}>
+              Flat architecture diagram
             </MenuItem>
           )}
 

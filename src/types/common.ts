@@ -35,6 +35,9 @@ export const MainMenuOptionsEnum = {
   'ACTION.OPEN': 'ACTION.OPEN',
   'EXPORT.JSON': 'EXPORT.JSON',
   'EXPORT.PNG': 'EXPORT.PNG',
+  // Opens the read-only flat/architecture diagram view (a new view, not an
+  // export) — see src/components/FlatDiagram.
+  'VIEW.FLAT_DIAGRAM': 'VIEW.FLAT_DIAGRAM',
   'ACTION.CLEAR_CANVAS': 'ACTION.CLEAR_CANVAS',
   'LINK.GITHUB': 'LINK.GITHUB',
   'LINK.DISCORD': 'LINK.DISCORD',
