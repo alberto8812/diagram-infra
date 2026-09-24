@@ -12,6 +12,7 @@ import {
 import { resolveItemLabels } from './resolveItemLabels';
 import { resolveItemGroups } from './resolveItemGroups';
 import { routeFlatConnector } from './routeFlatConnector';
+import { wrapLabel } from './wrapLabel';
 
 // Rendering-only constants for the flat diagram: how the icon and label sit
 // inside one FLAT_LAYOUT_ITEM_WIDTH x FLAT_LAYOUT_ITEM_HEIGHT cell from
@@ -21,6 +22,7 @@ import { routeFlatConnector } from './routeFlatConnector';
 const ITEM_ICON_SIZE = 48;
 const ITEM_LABEL_FONT_SIZE = 12;
 const ITEM_LABEL_TOP_GAP = 10;
+const ITEM_LABEL_LINE_HEIGHT = 14;
 const GROUP_LABEL_FONT_SIZE = 13;
 const GROUP_LABEL_PADDING = 12;
 const CONNECTOR_STROKE = '#8a94a6';
@@ -51,6 +53,9 @@ const FlatDiagramItemNode = ({
   label
 }: FlatDiagramItemNodeProps) => {
   const { icon } = useIcon(modelItem.icon);
+  const lines = useMemo(() => {
+    return wrapLabel(label);
+  }, [label]);
 
   return (
     <g
@@ -73,7 +78,22 @@ const FlatDiagramItemNode = ({
         textAnchor="middle"
         fontSize={ITEM_LABEL_FONT_SIZE}
       >
-        {label}
+        {lines.length <= 1
+          ? label
+          : lines.map((line, index) => {
+              return (
+                <tspan
+                  // Lines are positional and never reorder, so the index
+                  // is a stable key here.
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={index}
+                  x={FLAT_LAYOUT_ITEM_WIDTH / 2}
+                  dy={index === 0 ? 0 : ITEM_LABEL_LINE_HEIGHT}
+                >
+                  {line}
+                </tspan>
+              );
+            })}
       </text>
     </g>
   );
