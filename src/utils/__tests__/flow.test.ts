@@ -1155,13 +1155,23 @@ describe('parseDurationInput() works correctly', () => {
     });
   });
 
-  // `Number` accepts these and turns them into 16, 3 and 1000. Storing a
-  // value the user never typed is worse than refusing the input, and refusing
-  // it is what already happens to a decimal.
-  test('a number written in another base or notation is invalid', () => {
-    expect(parseDurationInput('0x10').isValid).toBe(false);
-    expect(parseDurationInput('0b11').isValid).toBe(false);
-    expect(parseDurationInput('1e3').isValid).toBe(false);
+  // Everything `Number` would silently reinterpret. `0x10`, `0b11` and `1e3`
+  // become 16, 3 and 1000; `+5` and `5.` become 5; `1.0` becomes 1. Each
+  // stores a value the user did not type, so each is refused the same way a
+  // decimal already was. Asserting the whole result, like the tests above,
+  // pins the rejection shape too — not just that it was rejected.
+  test.each([
+    ['hexadecimal', '0x10'],
+    ['binary', '0b11'],
+    ['exponent notation', '1e3'],
+    ['a leading plus sign', '+5'],
+    ['a trailing dot', '5.'],
+    ['a zero fraction', '1.0']
+  ])('%s is invalid', (_name, input) => {
+    expect(parseDurationInput(input)).toStrictEqual({
+      isValid: false,
+      durationMs: undefined
+    });
   });
 
   test('a negative number is invalid', () => {
