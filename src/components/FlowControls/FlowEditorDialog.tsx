@@ -10,6 +10,7 @@ import {
   Button,
   TextField,
   Select,
+  SelectChangeEvent,
   MenuItem,
   List,
   ListItemButton,
@@ -29,7 +30,9 @@ import {
 import {
   FlowStep,
   FlowStepDirection,
-  flowStepDirectionOptions
+  FlowStepOutcome,
+  flowStepDirectionOptions,
+  flowStepOutcomeOptions
 } from 'src/types';
 import { useModelStore } from 'src/stores/modelStore';
 import { useUiStateStore } from 'src/stores/uiStateStore';
@@ -41,7 +44,8 @@ import {
   findFlowStepConnector,
   buildFlowStepUpdates,
   parseDurationInput,
-  resolvePickableConnectors
+  resolvePickableConnectors,
+  hasExplicitSuccessors
 } from 'src/utils';
 
 interface Props {
@@ -52,6 +56,19 @@ const DIRECTION_LABELS: Record<FlowStepDirection, string> = {
   REQUEST: 'Request',
   RESPONSE: 'Response'
 };
+
+const OUTCOME_LABELS: Record<FlowStepOutcome, string> = {
+  SUCCESS: 'Success',
+  FAILURE: 'Failure'
+};
+
+// Tooltip/title shown on the disabled reorder buttons once a flow declares
+// successors (see hasExplicitSuccessors, src/utils/flow.ts): reordering the
+// array no longer changes playback in that case, since resolveNextSteps
+// never falls back to array order for a graph flow. Explaining why beats
+// leaving the buttons silently inert.
+const REORDER_DISABLED_TITLE =
+  'This flow sets its own step order through successors';
 
 // Manages flows: create/rename/delete a flow, and add/reorder/delete its
 // steps, with an "Add return path" convenience that mirrors the existing
@@ -84,7 +101,8 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     createFlowStep,
     updateFlowStep,
     deleteFlowStep,
-    reorderFlowSteps
+    reorderFlowSteps,
+    setFlowStepSuccessors
   } = useScene();
 
   const [selectedFlowId, setSelectedFlowId] = useState<string | null>(() => {
@@ -128,10 +146,23 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     useState<FlowStepDirection>('REQUEST');
   const [newLabel, setNewLabel] = useState('');
   const [newDurationMs, setNewDurationMs] = useState('');
+  const [newOutcome, setNewOutcome] = useState<FlowStepOutcome | ''>('');
+
+  // Successors are only editable while editing an existing step (see the
+  // Select below), and are only ever written when the user actually opens
+  // the control — see `successorsTouched`.
+  const [newSuccessors, setNewSuccessors] = useState<string[]>([]);
+
+  // Guards setFlowStepSuccessors from firing on every ordinary save. Saving
+  // the rest of the form (connector/direction/label/duration/outcome) must
+  // never, by itself, turn a list flow into a graph flow — only an explicit
+  // edit to the successors control does that (see setFlowStepSuccessors,
+  // src/stores/reducers/flow.ts, and its backfill rule).
+  const [successorsTouched, setSuccessorsTouched] = useState(false);
 
   // `null` means the form below is in "add" mode; a step id means it is
-  // editing that step instead. The four fields above are shared between
-  // both modes — there is only ever one form.
+  // editing that step instead. The fields above are shared between both
+  // modes — there is only ever one form.
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
 
   const handleCancelEdit = useCallback(() => {
@@ -140,6 +171,9 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     setNewDirection('REQUEST');
     setNewLabel('');
     setNewDurationMs('');
+    setNewOutcome('');
+    setNewSuccessors([]);
+    setSuccessorsTouched(false);
   }, []);
 
   // Switching flows must not leave a stale edit target (and its populated
@@ -156,6 +190,9 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     setNewDurationMs(
       step.durationMs !== undefined ? String(step.durationMs) : ''
     );
+    setNewOutcome(step.outcome ?? '');
+    setNewSuccessors(step.next ?? []);
+    setSuccessorsTouched(false);
   }, []);
 
   const editingStep = useMemo(() => {
@@ -223,7 +260,10 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     if (!connectorExists) return;
 
     // Same rules as saving an edit: one definition of what an empty or
-    // whitespace-only field means, so adding and editing cannot disagree.
+    // whitespace-only field means, so adding and editing cannot disagree. A
+    // step being added has no id yet for another step to point at, so it
+    // never carries `next` here — successors only ever apply while editing
+    // an existing step (see the successors Select below).
     createFlowStep(selectedFlow.id, {
       id: generateId(),
       ...buildFlowStepUpdates(
@@ -231,17 +271,20 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
         newDirection,
         newLabel,
         newDurationMs
-      )
+      ),
+      outcome: newOutcome === '' ? undefined : newOutcome
     });
 
     setNewLabel('');
     setNewDurationMs('');
+    setNewOutcome('');
   }, [
     selectedFlow,
     newConnectorId,
     newDirection,
     newLabel,
     newDurationMs,
+    newOutcome,
     parsedDuration,
     pickableConnectors,
     createFlowStep
@@ -262,16 +305,23 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     });
     if (!connectorExists) return;
 
-    updateFlowStep(
-      selectedFlow.id,
-      editingStepId,
-      buildFlowStepUpdates(
+    updateFlowStep(selectedFlow.id, editingStepId, {
+      ...buildFlowStepUpdates(
         newConnectorId,
         newDirection,
         newLabel,
         newDurationMs
-      )
-    );
+      ),
+      outcome: newOutcome === '' ? undefined : newOutcome
+    });
+
+    // Only touches `next` — and only ever backfills the rest of the flow —
+    // when the user actually opened the successors control. Otherwise an
+    // ordinary edit (label, duration, ...) would silently convert a list
+    // flow into a graph flow (see setFlowStepSuccessors's backfill rule).
+    if (successorsTouched) {
+      setFlowStepSuccessors(selectedFlow.id, editingStepId, newSuccessors);
+    }
 
     handleCancelEdit();
   }, [
@@ -282,8 +332,12 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     newDirection,
     newLabel,
     newDurationMs,
+    newOutcome,
+    newSuccessors,
+    successorsTouched,
     pickableConnectors,
     updateFlowStep,
+    setFlowStepSuccessors,
     handleCancelEdit
   ]);
 
@@ -310,6 +364,43 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
       views
     );
   }, [selectedFlow, views]);
+
+  // Labels every step of the selected flow the same way the step rows below
+  // are labelled ("1. Item A -> Item B"), so the successors picker lists
+  // options the user recognises instead of raw ids.
+  const stepLabels = useMemo(() => {
+    const labels: Record<string, string> = {};
+    if (!selectedFlow) return labels;
+
+    selectedFlow.steps.forEach((step, index) => {
+      const stepConnector = findFlowStepConnector(views, step);
+      const connectorLabel = stepConnector
+        ? getConnectorEndpointLabel(stepConnector, items)
+        : 'Missing connector';
+
+      labels[step.id] = `${index + 1}. ${connectorLabel}`;
+    });
+
+    return labels;
+  }, [selectedFlow, views, items]);
+
+  // Candidates for the successors picker: every OTHER step of the selected
+  // flow — a step must never be offered as its own successor.
+  const successorCandidates = useMemo(() => {
+    if (!selectedFlow || !editingStepId) return [];
+
+    return selectedFlow.steps.filter((step) => {
+      return step.id !== editingStepId;
+    });
+  }, [selectedFlow, editingStepId]);
+
+  // See hasExplicitSuccessors (src/utils/flow.ts): once any step of the flow
+  // declares `next`, resolveNextSteps stops consulting array order
+  // altogether, so reordering rows here would move them without changing
+  // playback at all.
+  const isGraphFlow = useMemo(() => {
+    return selectedFlow ? hasExplicitSuccessors(selectedFlow.steps) : false;
+  }, [selectedFlow]);
 
   const handleAddReturnPath = useCallback(() => {
     if (!selectedFlow) return;
@@ -439,7 +530,12 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
                             <Stack direction="row" spacing={0.5}>
                               <IconButton
                                 size="small"
-                                disabled={index === 0}
+                                disabled={index === 0 || isGraphFlow}
+                                title={
+                                  isGraphFlow
+                                    ? REORDER_DISABLED_TITLE
+                                    : undefined
+                                }
                                 onClick={() => {
                                   reorderFlowSteps(
                                     selectedFlow.id,
@@ -453,7 +549,13 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
                               <IconButton
                                 size="small"
                                 disabled={
-                                  index === selectedFlow.steps.length - 1
+                                  index === selectedFlow.steps.length - 1 ||
+                                  isGraphFlow
+                                }
+                                title={
+                                  isGraphFlow
+                                    ? REORDER_DISABLED_TITLE
+                                    : undefined
                                 }
                                 onClick={() => {
                                   reorderFlowSteps(
@@ -595,6 +697,61 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
                       }
                       sx={{ width: 160 }}
                     />
+
+                    <Select
+                      size="small"
+                      displayEmpty
+                      value={newOutcome}
+                      onChange={(e) => {
+                        setNewOutcome(e.target.value as FlowStepOutcome | '');
+                      }}
+                      sx={{ minWidth: 160 }}
+                    >
+                      <MenuItem value="">
+                        <em>No outcome</em>
+                      </MenuItem>
+                      {flowStepOutcomeOptions.map((outcome) => {
+                        return (
+                          <MenuItem key={outcome} value={outcome}>
+                            {OUTCOME_LABELS[outcome]}
+                          </MenuItem>
+                        );
+                      })}
+                    </Select>
+
+                    {editingStepId && (
+                      <Select
+                        size="small"
+                        multiple
+                        displayEmpty
+                        value={newSuccessors}
+                        onChange={(e: SelectChangeEvent<string[]>) => {
+                          const { value } = e.target;
+                          setNewSuccessors(
+                            typeof value === 'string' ? value.split(',') : value
+                          );
+                          setSuccessorsTouched(true);
+                        }}
+                        renderValue={(selected) => {
+                          if (selected.length === 0) return 'No successors';
+
+                          return selected
+                            .map((id) => {
+                              return stepLabels[id] ?? id;
+                            })
+                            .join(', ');
+                        }}
+                        sx={{ minWidth: 220 }}
+                      >
+                        {successorCandidates.map((step) => {
+                          return (
+                            <MenuItem key={step.id} value={step.id}>
+                              {stepLabels[step.id]}
+                            </MenuItem>
+                          );
+                        })}
+                      </Select>
+                    )}
                   </Stack>
 
                   <Stack direction="row" spacing={1}>
