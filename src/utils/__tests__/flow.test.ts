@@ -1064,6 +1064,28 @@ describe('buildFlowStepUpdates() works correctly', () => {
     ).toBeUndefined();
   });
 
+  // The upper boundary from the accepting side. Every large-input test below
+  // asserts a rejection, so a regression that refused valid large values
+  // would leave them all green.
+  test('the largest safe integer is still accepted', () => {
+    expect(parseDurationInput(String(Number.MAX_SAFE_INTEGER))).toStrictEqual({
+      isValid: true,
+      durationMs: Number.MAX_SAFE_INTEGER
+    });
+  });
+
+  // A leading zero is allowed on purpose, and this pins that decision. `05`
+  // and `5` name the same number in the same base — it is a normalisation.
+  // The rejected cases below are reinterpretations: another base, another
+  // notation, or a value the field cannot hold, each of which reads back as
+  // something else entirely.
+  test('a leading zero is accepted and normalised', () => {
+    expect(parseDurationInput('05')).toStrictEqual({
+      isValid: true,
+      durationMs: 5
+    });
+  });
+
   test('parses a valid duration string to a number', () => {
     expect(
       buildFlowStepUpdates('conn1', 'REQUEST', 'Ack', '1500').durationMs
