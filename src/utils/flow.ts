@@ -360,8 +360,13 @@ export const parseDurationInput = (value: string): ParsedDurationInput => {
 
   if (trimmed === '') return { isValid: true, durationMs: undefined };
 
+  // Digits only, checked before converting. `Number` alone would also accept
+  // `0x10`, `0b11` and `1e3`, storing 16, 3 and 1000 — a value the user never
+  // typed, and silently, while a decimal like `1.5` is rejected with a
+  // message. A duration field should read back what was written or say why it
+  // cannot.
   const parsed = Number(trimmed);
-  const isValid = Number.isInteger(parsed) && parsed > 0;
+  const isValid = /^\d+$/.test(trimmed) && parsed > 0;
 
   return isValid
     ? { isValid: true, durationMs: parsed }

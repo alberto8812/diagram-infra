@@ -1155,6 +1155,15 @@ describe('parseDurationInput() works correctly', () => {
     });
   });
 
+  // `Number` accepts these and turns them into 16, 3 and 1000. Storing a
+  // value the user never typed is worse than refusing the input, and refusing
+  // it is what already happens to a decimal.
+  test('a number written in another base or notation is invalid', () => {
+    expect(parseDurationInput('0x10').isValid).toBe(false);
+    expect(parseDurationInput('0b11').isValid).toBe(false);
+    expect(parseDurationInput('1e3').isValid).toBe(false);
+  });
+
   test('a negative number is invalid', () => {
     expect(parseDurationInput('-5')).toStrictEqual({
       isValid: false,
