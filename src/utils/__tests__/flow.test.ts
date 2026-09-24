@@ -804,6 +804,75 @@ describe('getMissingReturnPathSteps() works correctly', () => {
     expect(getMissingReturnPathSteps(steps, makeCounter())).toStrictEqual([]);
   });
 
+  // The real diagram that exposed this. `buildReturnPathSteps` skips async
+  // connectors, so the candidate list is SHORTER than a return path that
+  // already carries a hop for one. The old prefix walk matched position for
+  // position, hit the extra hop, and regenerated everything after it — three
+  // duplicates of hops that were all already there.
+  test('an existing hop the builder would not generate does not duplicate the rest', () => {
+    const views = [
+      {
+        id: 'view1',
+        connectors: [
+          { id: 'conn1', anchors: [] },
+          { id: 'conn2', anchors: [] },
+          { id: 'async', anchors: [], mode: 'async' }
+        ]
+      }
+    ] as unknown as View[];
+
+    const requestSteps: FlowStep[] = [
+      { id: 'r1', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 'r2', connectorId: 'async', direction: 'REQUEST' },
+      { id: 'r3', connectorId: 'conn2', direction: 'REQUEST' }
+    ];
+
+    // The return path as a human would draw it: every hop back, including the
+    // async one the generator declines to mirror.
+    const steps: FlowStep[] = [
+      ...requestSteps,
+      { id: 'b1', connectorId: 'conn2', direction: 'RESPONSE' },
+      { id: 'b2', connectorId: 'async', direction: 'RESPONSE' },
+      { id: 'b3', connectorId: 'conn1', direction: 'RESPONSE' }
+    ];
+
+    expect(
+      getMissingReturnPathSteps(steps, makeCounter(), views)
+    ).toStrictEqual([]);
+  });
+
+  test('an out-of-order return path is still recognised as complete', () => {
+    const requestSteps: FlowStep[] = [
+      { id: 'r1', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 'r2', connectorId: 'conn2', direction: 'REQUEST' }
+    ];
+
+    // Mirrored, then reordered by the author. Every hop is present.
+    const steps: FlowStep[] = [
+      ...requestSteps,
+      { id: 'b1', connectorId: 'conn1', direction: 'RESPONSE' },
+      { id: 'b2', connectorId: 'conn2', direction: 'RESPONSE' }
+    ];
+
+    expect(getMissingReturnPathSteps(steps, makeCounter())).toStrictEqual([]);
+  });
+
+  // Membership alone would swallow the second hop. Each candidate claims one
+  // existing hop, and a claimed hop cannot be claimed again.
+  test('a connector travelled twice still gets both of its return hops', () => {
+    const requestSteps: FlowStep[] = [
+      { id: 'r1', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 'r2', connectorId: 'conn1', direction: 'REQUEST' }
+    ];
+
+    const steps: FlowStep[] = [
+      ...requestSteps,
+      { id: 'b1', connectorId: 'conn1', direction: 'RESPONSE' }
+    ];
+
+    expect(getMissingReturnPathSteps(steps, makeCounter())).toHaveLength(1);
+  });
+
   test('adds only the still-missing steps when the return path is partial', () => {
     const requestSteps: FlowStep[] = [
       { id: 's1', connectorId: 'conn1', direction: 'REQUEST' },
