@@ -9,7 +9,9 @@ import {
   groupActiveStepsByConnectorId,
   resolveActiveConnectorStepIds,
   resolveNextSteps,
-  getFlowStartSteps
+  getFlowStartSteps,
+  parseDurationInput,
+  resolvePickableConnectors
 } from '../flow';
 
 const connector = (id: string, anchors: Connector['anchors']): Connector => {
@@ -1068,6 +1070,21 @@ describe('buildFlowStepUpdates() works correctly', () => {
     ).toBe(1500);
   });
 
+  // A duration of only spaces is already treated as absent, because
+  // `Number('   ')` is 0. The label has to agree, or the same input clears one
+  // field and saves an invisible value into the other.
+  test('clears the label when it is only whitespace', () => {
+    expect(
+      buildFlowStepUpdates('conn1', 'REQUEST', '   ', '1500').label
+    ).toBeUndefined();
+  });
+
+  test('keeps the surrounding text of a label that is not only whitespace', () => {
+    expect(
+      buildFlowStepUpdates('conn1', 'REQUEST', '  Ack  ', '1500').label
+    ).toBe('Ack');
+  });
+
   // `durationMs` is `z.number().int().positive().optional()` in
   // src/schemas/flow.ts, so a positive decimal is still invalid data. Without
   // this case the integer rule is unguarded: dropping it leaves every other
@@ -1080,5 +1097,108 @@ describe('buildFlowStepUpdates() works correctly', () => {
     expect(
       buildFlowStepUpdates('conn1', 'REQUEST', 'Ack', '1500.25').durationMs
     ).toBeUndefined();
+  });
+
+  // Pins the shared rule now delegated to parseDurationInput: an empty
+  // string is a valid "clear" input, not an invalid one, so this must keep
+  // clearing the duration regardless of how the two are wired together.
+  test('still clears durationMs for an empty string via the shared parseDurationInput rule', () => {
+    expect(
+      buildFlowStepUpdates('conn1', 'REQUEST', 'Ack', '').durationMs
+    ).toBeUndefined();
+  });
+});
+
+describe('parseDurationInput() works correctly', () => {
+  test('an empty string is valid and clears the duration', () => {
+    expect(parseDurationInput('')).toStrictEqual({
+      isValid: true,
+      durationMs: undefined
+    });
+  });
+
+  test('a whitespace-only string is valid and clears the duration', () => {
+    expect(parseDurationInput('   ')).toStrictEqual({
+      isValid: true,
+      durationMs: undefined
+    });
+  });
+
+  test('a valid positive integer string is valid', () => {
+    expect(parseDurationInput('1500')).toStrictEqual({
+      isValid: true,
+      durationMs: 1500
+    });
+  });
+
+  // The bug this whole helper exists to fix: a decimal used to collapse to
+  // the same `undefined` as an empty field, silently erasing a stored
+  // duration instead of being rejected.
+  test('a positive decimal string is invalid', () => {
+    expect(parseDurationInput('1.5')).toStrictEqual({
+      isValid: false,
+      durationMs: undefined
+    });
+  });
+
+  test('a non-numeric string is invalid', () => {
+    expect(parseDurationInput('abc')).toStrictEqual({
+      isValid: false,
+      durationMs: undefined
+    });
+  });
+
+  test('zero is invalid', () => {
+    expect(parseDurationInput('0')).toStrictEqual({
+      isValid: false,
+      durationMs: undefined
+    });
+  });
+
+  test('a negative number is invalid', () => {
+    expect(parseDurationInput('-5')).toStrictEqual({
+      isValid: false,
+      durationMs: undefined
+    });
+  });
+
+  test('surrounding whitespace around a valid number is trimmed and valid', () => {
+    expect(parseDurationInput('  1500  ')).toStrictEqual({
+      isValid: true,
+      durationMs: 1500
+    });
+  });
+});
+
+describe('resolvePickableConnectors() works correctly', () => {
+  test('returns the exact same array reference when there is no edited connector', () => {
+    const connectors = [connector('conn1', [])];
+
+    expect(resolvePickableConnectors(connectors, undefined)).toBe(connectors);
+  });
+
+  test('returns the exact same array reference when the edited connector is already listed', () => {
+    const conn1 = connector('conn1', []);
+    const connectors = [conn1];
+
+    expect(resolvePickableConnectors(connectors, conn1)).toBe(connectors);
+  });
+
+  test('appends the edited connector when it is missing from the list', () => {
+    const conn1 = connector('conn1', []);
+    const editedConnector = connector('conn2', []);
+    const connectors = [conn1];
+
+    expect(
+      resolvePickableConnectors(connectors, editedConnector)
+    ).toStrictEqual([conn1, editedConnector]);
+  });
+
+  test('returns an array containing just the edited connector when the list is empty', () => {
+    const editedConnector = connector('conn1', []);
+
+    expect(resolvePickableConnectors([], editedConnector)).toStrictEqual([
+      editedConnector
+    ]);
   });
 });
