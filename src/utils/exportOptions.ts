@@ -6,6 +6,31 @@ export const generateGenericFilename = (extension: string) => {
   return `isoflow-export-${new Date().toISOString()}.${extension}`;
 };
 
+// Turns whatever `dom-to-image` rejected with into something worth showing.
+//
+// It does not always reject with an `Error`: an image it cannot load rejects
+// with the DOM error Event itself, which stringifies to "[object Event]" and
+// names nothing. The URL that failed is on that event's target, and it is the
+// single most useful fact about the failure — usually an icon the diagram
+// points at that the browser could not fetch.
+export const describeExportError = (error: unknown): string => {
+  if (error instanceof Error && error.message !== '') {
+    return error.message;
+  }
+
+  if (typeof error === 'string' && error !== '') {
+    return error;
+  }
+
+  const src = (error as { target?: { src?: unknown } } | null)?.target?.src;
+
+  if (typeof src === 'string' && src !== '') {
+    return `could not load ${src}`;
+  }
+
+  return 'no reason was reported';
+};
+
 export const base64ToBlob = (
   base64: string,
   contentType: string,
