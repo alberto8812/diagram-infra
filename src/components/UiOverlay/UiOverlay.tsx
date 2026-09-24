@@ -20,6 +20,7 @@ import { ViewSwitcher } from 'src/components/ViewSwitcher/ViewSwitcher';
 import { IssuesPanel } from 'src/components/IssuesPanel/IssuesPanel';
 import { SecurityReportDialog } from 'src/components/SecurityReportDialog/SecurityReportDialog';
 import { CostReportDialog } from 'src/components/CostReportDialog/CostReportDialog';
+import { FlatDiagramDialog } from 'src/components/FlatDiagram/FlatDiagramDialog';
 import { ExportImageDialog } from '../ExportImageDialog/ExportImageDialog';
 
 const ToolsEnum = {
@@ -320,6 +321,14 @@ export const UiOverlay = () => {
 
       {dialog === 'COST_REPORT' && availableTools.includes('TOOL_MENU') && (
         <CostReportDialog
+          onClose={() => {
+            return uiStateActions.setDialog(null);
+          }}
+        />
+      )}
+
+      {dialog === 'FLAT_DIAGRAM' && (
+        <FlatDiagramDialog
           onClose={() => {
             return uiStateActions.setDialog(null);
           }}
