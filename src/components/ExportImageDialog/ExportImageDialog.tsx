@@ -20,6 +20,7 @@ import {
 import { useModelStore } from 'src/stores/modelStore';
 import {
   exportAsImage,
+  describeExportError,
   downloadFile as downloadFileUtil,
   base64ToBlob,
   generateGenericFilename,
@@ -45,7 +46,11 @@ export const ExportImageDialog = ({ onClose, quality = 1.5 }: Props) => {
     return state.view;
   });
   const [imageData, setImageData] = React.useState<string>();
-  const [exportError, setExportError] = useState(false);
+  // The reason, not just the fact. `dom-to-image` fails for several unrelated
+  // causes — an image it cannot inline, a canvas it cannot read back, a
+  // stylesheet it cannot reach — and "Could not export image" alone leaves
+  // the user, and anyone they report it to, with nothing to act on.
+  const [exportError, setExportError] = useState<string | null>(null);
   const { getUnprojectedBounds } = useDiagramUtils();
   const uiStateActions = useUiStateStore((state) => {
     return state.actions;
@@ -74,9 +79,9 @@ export const ExportImageDialog = ({ onClose, quality = 1.5 }: Props) => {
         .then((data) => {
           return setImageData(data);
         })
-        .catch((err) => {
-          console.log(err);
-          setExportError(true);
+        .catch((err: unknown) => {
+          console.error('[export] could not export image', err);
+          setExportError(describeExportError(err));
         });
     }, 2000);
   }, []);
@@ -228,8 +233,10 @@ export const ExportImageDialog = ({ onClose, quality = 1.5 }: Props) => {
             )}
           </Stack>
 
-          {exportError && (
-            <Alert severity="error">Could not export image</Alert>
+          {exportError !== null && (
+            <Alert severity="error">
+              Could not export image: {exportError}
+            </Alert>
           )}
         </Stack>
       </DialogContent>
