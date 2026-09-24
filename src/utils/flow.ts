@@ -575,9 +575,22 @@ const isSameReturnHop = (a: FlowStep, b: FlowStep): boolean => {
 // (R3-return-path-not-idempotent). This compares the full candidate list
 // against the steps that already sit after the last REQUEST step (i.e. the
 // existing return path, if any) and only returns the candidates that don't
-// already have a matching counterpart there, in order — so re-running it
-// once the return path is already fully mirrored yields an empty array, and
-// re-running it after a partial/edited mirror only fills in what's missing.
+// already have a matching counterpart there — so re-running it once the
+// return path is already fully mirrored yields an empty array, and re-running
+// it after a partial mirror only fills in what's missing.
+//
+// Each candidate claims one existing hop, and a claimed hop cannot be claimed
+// twice, so a flow that legitimately travels the same connector twice still
+// gets both of its return hops. The pairing is deliberately NOT positional.
+// It used to be a prefix walk — candidate[i] against existing[i], stopping at
+// the first difference — and that regenerated the entire remainder whenever
+// the two lists drifted apart by one entry, which they routinely do:
+// `buildReturnPathSteps` skips async connectors, so an existing return path
+// that carries a hop for one (authored by hand, or mirrored before that rule
+// existed) is longer than the candidate list. Everything after the extra hop
+// then mismatched by position and came back as a duplicate, even though every
+// single one of those hops was already present.
+//
 // The match is structural (`isSameReturnHop`, connector + direction) rather
 // than content-based: a RESPONSE step's label/duration are user content that
 // is expected to diverge from the mirrored default, and comparing them
@@ -602,17 +615,20 @@ export const getMissingReturnPathSteps = (
   }, -1);
 
   const existingTail = steps.slice(lastRequestIndex + 1);
+  const claimed = new Set<number>();
 
-  let matchCount = 0;
-  while (
-    matchCount < candidates.length &&
-    matchCount < existingTail.length &&
-    isSameReturnHop(candidates[matchCount], existingTail[matchCount])
-  ) {
-    matchCount += 1;
-  }
+  return candidates
+    .filter((candidate) => {
+      const match = existingTail.findIndex((existing, index) => {
+        return !claimed.has(index) && isSameReturnHop(candidate, existing);
+      });
 
-  return candidates.slice(matchCount).map((step) => {
-    return { ...step, id: makeId() };
-  });
+      if (match === -1) return true;
+
+      claimed.add(match);
+      return false;
+    })
+    .map((step) => {
+      return { ...step, id: makeId() };
+    });
 };
