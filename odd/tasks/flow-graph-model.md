@@ -211,6 +211,43 @@ its own pull request against `main`, in order, merged before the next one starts
       in `src/utils/flow.ts`) generate steps that declare their own successors:
       today those steps have no `next`, so in a graph flow every generated step
       would resolve as terminal and the return path would not chain.
+
+      **T5a — step editing. DONE**, merged as PR #28. The editor could add,
+      reorder and delete but never edit; `updateFlowStep` existed and was
+      simply never called. Edit mode reuses the add form. `buildFlowStepUpdates`
+      holds what an empty field means, because `updateFlowStep` shallow-merges
+      and a cleared label has to be sent as `undefined` or the old one survives.
+
+      **T5b — successor and outcome authoring. DONE**, in two parts. The pure
+      rules merged as PR #32 (`withExplicitSuccessors`, `removeStepFromFlow`);
+      the wiring and controls are on `feat/flow-graph-t5b-authoring`, commit
+      `4ae85b6`. Three decisions settled with the user on 2026-09-24:
+      - Declaring the first successor in a linear flow BACKFILLS `next` on the
+        other steps from array order, so the conversion to a graph does not
+        change how the flow plays. Preferred over warning the user about a
+        consequence we can remove. The backfill is decided against the flow as
+        it stands BEFORE the edit and only when no step declares successors —
+        a flow that is already a graph has deliberate endings, and backfilling
+        those would turn them into chains.
+      - Up/down are DISABLED once a flow declares successors, rather than
+        silently doing nothing: `resolveNextSteps` stops consulting array order
+        there. Rejected making reorder rewrite `next`, since a real graph has
+        no linear order for the array to stand for.
+      - Deleting CLOSES THE CHAIN (`A -> B -> C`, delete B, gives `A -> C`),
+        which is what deleting from a list always did.
+      Checks observed: `npm test` 719/719 in 53 suites, `npx tsc --noEmit`
+      clean, `npm run lint` at the pre-existing 5 problems. Mutation-verified:
+      always backfilling fails the already-a-graph test; removing without
+      repair fails the chain test.
+
+      **Still open: the "add return path" half above.** `buildReturnPathSteps`
+      generates steps with no `next`, so in a graph flow they are all terminal
+      and the return path does not chain. It takes a bare step array and never
+      asks whether the flow is a graph, so emitting `next` unconditionally
+      would flip every list flow the button is used on.
+
+      Not covered: no test renders the dialog. The controls, the disabled
+      reorder and the touched-flag guard are verified by reading the code.
 - [x] T1b Review follow-ups on T1, treated as in-scope T1 defects: fixed the
       graph-vs-list asymmetry in `resolveNextSteps` (an absent or empty `next`
       in a graph flow now ends the branch instead of falling back to array
