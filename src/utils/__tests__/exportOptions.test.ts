@@ -25,6 +25,29 @@ describe('describeExportError() works correctly', () => {
     );
   });
 
+  // A data URI carries the whole image. This repo already ships one 5,270
+  // characters long, and a diagram with its own icon pack carries megabytes
+  // — none of which a reader can act on, and all of which would flood the
+  // alert at the moment the message matters most.
+  test('names the type of an inline image instead of printing its bytes', () => {
+    const src = `data:image/svg+xml;base64,${'A'.repeat(5000)}`;
+
+    expect(describeExportError({ target: { src } })).toBe(
+      'could not load an inline image/svg+xml;base64 image'
+    );
+  });
+
+  test('truncates a URL too long to sit in an alert', () => {
+    const src = `https://cdn.example.com/${'a'.repeat(500)}.svg`;
+    const message = describeExportError({ target: { src } });
+
+    expect(message.length).toBeLessThan(160);
+    expect(message.startsWith('could not load https://cdn.example.com/')).toBe(
+      true
+    );
+    expect(message.endsWith('…')).toBe(true);
+  });
+
   test('says nothing was reported rather than "[object Object]"', () => {
     expect(describeExportError({})).toBe('no reason was reported');
     expect(describeExportError(null)).toBe('no reason was reported');

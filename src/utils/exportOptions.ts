@@ -13,6 +13,25 @@ export const generateGenericFilename = (extension: string) => {
 // names nothing. The URL that failed is on that event's target, and it is the
 // single most useful fact about the failure — usually an icon the diagram
 // points at that the browser could not fetch.
+// Long enough to recognise a URL, short enough to stay inside an alert.
+const MAX_REPORTED_SRC_LENGTH = 120;
+
+// What to say about the source that failed. A data URI carries the whole
+// image inline — thousands of characters here, megabytes in a diagram
+// carrying its own icon pack — and none of those bytes tell a reader
+// anything they can act on. Naming its type says as much and fits on a line.
+const describeSrc = (src: string): string => {
+  if (src.startsWith('data:')) {
+    const [mediaType] = src.slice('data:'.length).split(',');
+
+    return `an inline ${mediaType || 'data'} image`;
+  }
+
+  return src.length > MAX_REPORTED_SRC_LENGTH
+    ? `${src.slice(0, MAX_REPORTED_SRC_LENGTH)}…`
+    : src;
+};
+
 export const describeExportError = (error: unknown): string => {
   if (error instanceof Error && error.message !== '') {
     return error.message;
@@ -25,7 +44,7 @@ export const describeExportError = (error: unknown): string => {
   const src = (error as { target?: { src?: unknown } } | null)?.target?.src;
 
   if (typeof src === 'string' && src !== '') {
-    return `could not load ${src}`;
+    return `could not load ${describeSrc(src)}`;
   }
 
   return 'no reason was reported';
