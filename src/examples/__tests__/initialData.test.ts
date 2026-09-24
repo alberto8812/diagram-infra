@@ -1,53 +1,66 @@
 import { icons } from '../initialData';
 
-// dom-to-image inlines every image before it can rasterise the diagram, and it
-// reads the media type from the URL's EXTENSION — never from the response's
-// Content-Type header:
+// dom-to-image inlines every image before it can rasterise the diagram, and
+// for anything it has to fetch over the network it reads the media type from
+// the URL's EXTENSION — never from the response's Content-Type header:
 //
 //   parseExtension(url) -> mimes()[extension] || ''
 //   dataAsUrl(content, type) -> 'data:' + type + ';base64,' + content
 //
-// So an extensionless URL, however correctly the server serves it, becomes
-// `data:;base64,...`. That URI cannot load as an image, and dom-to-image
-// rejects the whole export — one icon takes down the entire "Export as image".
-//
-// That is not hypothetical: `https://cdn.simpleicons.org/terraform/844FBA`
-// served a perfectly good `image/svg+xml` over CORS and still broke every
-// export, because the path ends in a colour rather than a file name.
-const EXTENSION_DOM_TO_IMAGE_KNOWS = /\.(svg|png|jpe?g|gif|webp|tiff?|bmp)$/i;
+// A `data:image/svg+xml;base64,...` URI sidesteps that hazard entirely (no
+// fetch, no extension to parse — the media type is already in the URI
+// itself), which is why every bundled icon is now baked as one
+// (src/utils/isometricBrandIcon.ts, src/examples/initialData.ts,
+// odd/tasks/local-isometric-icons.md T1/T2). This used to matter for a remote
+// URL: `https://cdn.simpleicons.org/terraform/844FBA` served a perfectly good
+// `image/svg+xml` over CORS and still broke every export, because the path
+// ends in a colour rather than a file name — the original bug this repo
+// chased before switching to local icons altogether.
+// The technology/CI-CD collections this file (src/examples/initialData.ts)
+// defines itself, as opposed to the @isoflow/isopacks (aws, azure, gcp,
+// kubernetes, isoflow) packs mixed into the same `icons` export. Some
+// isopack icons legitimately reuse one image for several ids (e.g. the
+// Kubernetes control-plane components) — that is a pre-existing @isoflow/isopacks
+// property, not something this task's icons own or should assert about.
+const OWN_COLLECTIONS = [
+  'cicd',
+  'runtimes',
+  'frameworks',
+  'apis',
+  'data',
+  'messaging',
+  'identity',
+  'networking',
+  'platform',
+  'observability',
+  'ai'
+];
 
 describe('the bundled icons', () => {
-  const remoteIcons = icons.filter((icon) => {
-    return /^https?:\/\//.test(icon.url ?? '');
-  });
-
-  test('there are remote icons to check', () => {
-    expect(remoteIcons.length).toBeGreaterThan(0);
-  });
-
-  test.each(
-    remoteIcons.map((icon) => {
-      return [icon.id, icon.url];
-    })
-  )('%s has a URL extension dom-to-image can resolve', (_id, url) => {
-    expect(url).toMatch(EXTENSION_DOM_TO_IMAGE_KNOWS);
-  });
-
-  // Checking the extension alone is not enough, and this is not theoretical:
-  // a bad edit to the URL template dropped the slug, leaving every one of
-  // these icons pointing at the same `https://cdn.simpleicons.org/.svg`. The
-  // extension survived, so the test above stayed green while 76 icons were
-  // broken.
-  //
-  // Uniqueness is what catches that, and it is the strongest claim that is
-  // actually true here. "The URL must contain the icon's id" was the first
-  // attempt and it is wrong: `gh-actions` is our id, `githubactions` is Simple
-  // Icons' slug, and neither owes the other a match.
-  test('no two icons share a URL', () => {
-    const urls = remoteIcons.map((icon) => {
-      return icon.url;
+  test('none of them are remote — every icon is a local data URI', () => {
+    const remoteIcons = icons.filter((icon) => {
+      return /^https?:\/\//.test(icon.url ?? '');
     });
 
-    expect(new Set(urls).size).toBe(urls.length);
+    expect(remoteIcons).toEqual([]);
+  });
+
+  // A bad edit to the old URL template once dropped the slug, leaving every
+  // one of ~76 icons pointing at the exact same
+  // `https://cdn.simpleicons.org/.svg` — the extension survived, so nothing
+  // else in this file would have caught it. Uniqueness is the strongest claim
+  // that is actually true for baked icons too: two different brands
+  // (different id, hex or path) must never collapse onto the same rendered
+  // data URI.
+  test("no two of this file's own icons share a URL", () => {
+    const ownUrls = icons
+      .filter((icon) => {
+        return OWN_COLLECTIONS.includes(icon.collection ?? '');
+      })
+      .map((icon) => {
+        return icon.url;
+      });
+
+    expect(new Set(ownUrls).size).toBe(ownUrls.length);
   });
 });

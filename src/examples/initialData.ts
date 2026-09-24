@@ -6,6 +6,8 @@ import awsIsopack from '@isoflow/isopacks/dist/aws';
 import gcpIsopack from '@isoflow/isopacks/dist/gcp';
 import azureIsopack from '@isoflow/isopacks/dist/azure';
 import kubernetesIsopack from '@isoflow/isopacks/dist/kubernetes';
+import { isometricBrandIcon } from 'src/utils/isometricBrandIcon';
+import { brandIconData } from './brandIconData.generated';
 
 const isopacks = flattenCollections([
   isoflowIsopack,
@@ -46,56 +48,69 @@ export const colors: Colors = [
   }
 ];
 
+// Brand icons for the CI/CD diagram and the technology reference set below.
+// Bundled locally and baked as isometric-block SVG data URIs (isIsometric:
+// true, see src/utils/isometricBrandIcon.ts) that render like the bundled
+// @isoflow/isopacks icons instead of depending on a CDN: dom-to-image (PNG
+// export) reads every <img> synchronously, and one host without
+// Access-Control-Allow-Origin fails the whole export — the same reason
+// aws-vpc below is inlined. Brand name/hex/path data comes from the
+// `simple-icons` devDependency (CC0-1.0), captured at build time into
+// src/examples/brandIconData.generated.ts by scripts/generate-brand-icons.mjs
+// (`npm run icons:generate`); `simple-icons` itself (ESM-only, ~3,500 icons)
+// is never imported at runtime. Two brands Simple Icons no longer ships
+// (openai, grpc) fall back to a generated monogram — see MONOGRAM_FALLBACKS
+// below and odd/tasks/local-isometric-icons.md.
+const MONOGRAM_FALLBACKS: Record<string, { hex: string; monogram: string }> = {
+  // OpenAI has no Simple Icons entry (only "OpenAI Gym"); OpenAI/ChatGPT's
+  // own brand teal.
+  openai: { hex: '#10A37F', monogram: 'AI' },
+  // gRPC has no Simple Icons entry at all; a blue close to grpc.io's mark.
+  grpc: { hex: '#4A90D9', monogram: 'RPC' }
+};
+
+const brandIcon = (
+  id: string,
+  name: string,
+  collection: string
+): Icons[number] => {
+  const data = brandIconData[id];
+  const fallback = MONOGRAM_FALLBACKS[id];
+
+  const generatorInput = data
+    ? { hex: data.hex, path: data.path }
+    : fallback && { hex: fallback.hex, monogram: fallback.monogram };
+
+  if (!generatorInput) {
+    throw new Error(
+      `brandIcon(): "${id}" has no generated simple-icons data and no monogram fallback`
+    );
+  }
+
+  const { dataUri } = isometricBrandIcon(generatorInput);
+
+  return {
+    id,
+    name,
+    url: dataUri,
+    isIsometric: true,
+    collection
+  };
+};
+
 // CI/CD logos for the Flyway + GitHub Actions + MySQL infrastructure diagram.
-// Sourced from Simple Icons (CC0). isIsometric is false so flat brand logos are
-// not projected as 3D blocks.
 const cicdIcons: Icons = [
-  {
-    id: 'git',
-    name: 'Git',
-    url: 'https://cdn.simpleicons.org/git/F05032.svg',
-    isIsometric: false,
-    collection: 'cicd'
-  },
-  {
-    id: 'github',
-    name: 'GitHub',
-    url: 'https://cdn.simpleicons.org/github/181717.svg',
-    isIsometric: false,
-    collection: 'cicd'
-  },
-  {
-    id: 'gh-actions',
-    name: 'GitHub Actions',
-    url: 'https://cdn.simpleicons.org/githubactions/2088FF.svg',
-    isIsometric: false,
-    collection: 'cicd'
-  },
-  {
-    id: 'flyway',
-    name: 'Flyway',
-    url: 'https://cdn.simpleicons.org/flyway/CC0000.svg',
-    isIsometric: false,
-    collection: 'cicd'
-  },
-  {
-    id: 'mysql',
-    name: 'MySQL',
-    url: 'https://cdn.simpleicons.org/mysql/4479A1.svg',
-    isIsometric: false,
-    collection: 'cicd'
-  },
-  {
-    id: 'terraform',
-    name: 'Terraform',
-    url: 'https://cdn.simpleicons.org/terraform/844FBA.svg',
-    isIsometric: false,
-    collection: 'cicd'
-  },
-  // The bundled aws isopack has 320 icons but no VPC, so this one is the official
-  // AWS Architecture Icons SVG, inlined. It must stay a data URI: dom-to-image
-  // fetches every external image over XHR when exporting a PNG, and one host that
-  // omits Access-Control-Allow-Origin fails the whole export.
+  brandIcon('git', 'Git', 'cicd'),
+  brandIcon('github', 'GitHub', 'cicd'),
+  brandIcon('gh-actions', 'GitHub Actions', 'cicd'),
+  brandIcon('flyway', 'Flyway', 'cicd'),
+  brandIcon('mysql', 'MySQL', 'cicd'),
+  brandIcon('terraform', 'Terraform', 'cicd'),
+  // The bundled aws isopack has 320 icons but no VPC, so this one is the
+  // official AWS Architecture Icons SVG, inlined directly — it is AWS's own
+  // architecture icon, not a Simple Icons brand mark, so it is not part of
+  // the generated set above. It must stay a data URI for the same
+  // CORS/export reason as every other icon here.
   {
     id: 'aws-vpc',
     name: 'Amazon VPC',
@@ -106,139 +121,106 @@ const cicdIcons: Icons = [
 ];
 
 // Technology logos for software and infrastructure design, grouped by
-// collection so the icon picker shows them as separate sections. Every host
-// below sends Access-Control-Allow-Origin: *, which PNG export depends on (see
-// the aws-vpc note above). Most come from Simple Icons (CC0) in their default
-// brand colour; the few Simple Icons no longer ships use a pinned alternative.
-const simpleIcon = (
-  slug: string,
-  name: string,
-  collection: string
-): Icons[number] => {
-  return {
-    id: slug,
-    name,
-    // The `.svg` is required, not decorative: dom-to-image reads an image's
-    // media type from the URL's extension, not from the response header, so
-    // an extensionless URL becomes `data:;base64,...` - which then fails to
-    // load and takes the whole image export down with it.
-    url: `https://cdn.simpleicons.org/${slug}.svg`,
-    isIsometric: false,
-    collection
-  };
-};
-
+// collection so the icon picker shows them as separate sections.
 const techIcons: Icons = [
   // Languages and runtimes
-  simpleIcon('nodedotjs', 'Node.js', 'runtimes'),
-  simpleIcon('bun', 'Bun', 'runtimes'),
-  simpleIcon('deno', 'Deno', 'runtimes'),
-  simpleIcon('typescript', 'TypeScript', 'runtimes'),
-  simpleIcon('python', 'Python', 'runtimes'),
-  simpleIcon('openjdk', 'Java (OpenJDK)', 'runtimes'),
-  simpleIcon('go', 'Go', 'runtimes'),
-  simpleIcon('rust', 'Rust', 'runtimes'),
-  simpleIcon('dotnet', '.NET', 'runtimes'),
+  brandIcon('nodedotjs', 'Node.js', 'runtimes'),
+  brandIcon('bun', 'Bun', 'runtimes'),
+  brandIcon('deno', 'Deno', 'runtimes'),
+  brandIcon('typescript', 'TypeScript', 'runtimes'),
+  brandIcon('python', 'Python', 'runtimes'),
+  brandIcon('openjdk', 'Java (OpenJDK)', 'runtimes'),
+  brandIcon('go', 'Go', 'runtimes'),
+  brandIcon('rust', 'Rust', 'runtimes'),
+  brandIcon('dotnet', '.NET', 'runtimes'),
 
   // Frameworks
-  simpleIcon('nestjs', 'NestJS', 'frameworks'),
-  simpleIcon('nextdotjs', 'Next.js', 'frameworks'),
-  simpleIcon('react', 'React', 'frameworks'),
-  simpleIcon('angular', 'Angular', 'frameworks'),
-  simpleIcon('vuedotjs', 'Vue.js', 'frameworks'),
-  simpleIcon('express', 'Express', 'frameworks'),
-  simpleIcon('spring', 'Spring', 'frameworks'),
-  simpleIcon('springboot', 'Spring Boot', 'frameworks'),
-  simpleIcon('fastapi', 'FastAPI', 'frameworks'),
-  simpleIcon('django', 'Django', 'frameworks'),
-  simpleIcon('laravel', 'Laravel', 'frameworks'),
+  brandIcon('nestjs', 'NestJS', 'frameworks'),
+  brandIcon('nextdotjs', 'Next.js', 'frameworks'),
+  brandIcon('react', 'React', 'frameworks'),
+  brandIcon('angular', 'Angular', 'frameworks'),
+  brandIcon('vuedotjs', 'Vue.js', 'frameworks'),
+  brandIcon('express', 'Express', 'frameworks'),
+  brandIcon('spring', 'Spring', 'frameworks'),
+  brandIcon('springboot', 'Spring Boot', 'frameworks'),
+  brandIcon('fastapi', 'FastAPI', 'frameworks'),
+  brandIcon('django', 'Django', 'frameworks'),
+  brandIcon('laravel', 'Laravel', 'frameworks'),
 
   // APIs and contracts
-  simpleIcon('graphql', 'GraphQL', 'apis'),
-  {
-    id: 'grpc',
-    name: 'gRPC',
-    url: 'https://raw.githubusercontent.com/cncf/artwork/831f27a0cf4227b1b76a28ff51a9f4127a2195ec/projects/grpc/icon/color/grpc-icon-color.svg',
-    isIsometric: false,
-    collection: 'apis'
-  },
-  simpleIcon('openapiinitiative', 'OpenAPI', 'apis'),
-  simpleIcon('swagger', 'Swagger', 'apis'),
+  brandIcon('graphql', 'GraphQL', 'apis'),
+  brandIcon('grpc', 'gRPC', 'apis'),
+  brandIcon('openapiinitiative', 'OpenAPI', 'apis'),
+  brandIcon('swagger', 'Swagger', 'apis'),
 
   // Data stores
-  simpleIcon('redis', 'Redis', 'data'),
-  simpleIcon('postgresql', 'PostgreSQL', 'data'),
-  simpleIcon('mariadb', 'MariaDB', 'data'),
-  simpleIcon('mongodb', 'MongoDB', 'data'),
-  simpleIcon('sqlite', 'SQLite', 'data'),
-  simpleIcon('apachecassandra', 'Apache Cassandra', 'data'),
-  simpleIcon('neo4j', 'Neo4j', 'data'),
-  simpleIcon('elasticsearch', 'Elasticsearch', 'data'),
-  simpleIcon('minio', 'MinIO', 'data'),
-  simpleIcon('qdrant', 'Qdrant', 'data'),
-  simpleIcon('supabase', 'Supabase', 'data'),
-  simpleIcon('firebase', 'Firebase', 'data'),
+  brandIcon('redis', 'Redis', 'data'),
+  brandIcon('postgresql', 'PostgreSQL', 'data'),
+  brandIcon('mariadb', 'MariaDB', 'data'),
+  brandIcon('mongodb', 'MongoDB', 'data'),
+  brandIcon('sqlite', 'SQLite', 'data'),
+  brandIcon('apachecassandra', 'Apache Cassandra', 'data'),
+  brandIcon('neo4j', 'Neo4j', 'data'),
+  brandIcon('elasticsearch', 'Elasticsearch', 'data'),
+  brandIcon('minio', 'MinIO', 'data'),
+  brandIcon('qdrant', 'Qdrant', 'data'),
+  brandIcon('supabase', 'Supabase', 'data'),
+  brandIcon('firebase', 'Firebase', 'data'),
 
   // Messaging and streaming
-  simpleIcon('apachekafka', 'Apache Kafka', 'messaging'),
-  simpleIcon('rabbitmq', 'RabbitMQ', 'messaging'),
-  simpleIcon('nats.io', 'NATS', 'messaging'),
-  simpleIcon('apachespark', 'Apache Spark', 'messaging'),
-  simpleIcon('apacheairflow', 'Apache Airflow', 'messaging'),
+  brandIcon('apachekafka', 'Apache Kafka', 'messaging'),
+  brandIcon('rabbitmq', 'RabbitMQ', 'messaging'),
+  brandIcon('nats.io', 'NATS', 'messaging'),
+  brandIcon('apachespark', 'Apache Spark', 'messaging'),
+  brandIcon('apacheairflow', 'Apache Airflow', 'messaging'),
 
   // Identity and security
-  simpleIcon('keycloak', 'Keycloak', 'identity'),
-  simpleIcon('auth0', 'Auth0', 'identity'),
-  simpleIcon('okta', 'Okta', 'identity'),
-  simpleIcon('jsonwebtokens', 'JWT', 'identity'),
-  simpleIcon('vault', 'HashiCorp Vault', 'identity'),
+  brandIcon('keycloak', 'Keycloak', 'identity'),
+  brandIcon('auth0', 'Auth0', 'identity'),
+  brandIcon('okta', 'Okta', 'identity'),
+  brandIcon('jsonwebtokens', 'JWT', 'identity'),
+  brandIcon('vault', 'HashiCorp Vault', 'identity'),
 
   // Networking and edge
-  simpleIcon('nginx', 'NGINX', 'networking'),
-  simpleIcon('traefikproxy', 'Traefik Proxy', 'networking'),
-  simpleIcon('kong', 'Kong', 'networking'),
-  simpleIcon('envoyproxy', 'Envoy', 'networking'),
-  simpleIcon('istio', 'Istio', 'networking'),
-  simpleIcon('cloudflare', 'Cloudflare', 'networking'),
-  simpleIcon('vercel', 'Vercel', 'networking'),
+  brandIcon('nginx', 'NGINX', 'networking'),
+  brandIcon('traefikproxy', 'Traefik Proxy', 'networking'),
+  brandIcon('kong', 'Kong', 'networking'),
+  brandIcon('envoyproxy', 'Envoy', 'networking'),
+  brandIcon('istio', 'Istio', 'networking'),
+  brandIcon('cloudflare', 'Cloudflare', 'networking'),
+  brandIcon('vercel', 'Vercel', 'networking'),
 
   // Containers, platform and delivery
-  simpleIcon('docker', 'Docker', 'platform'),
-  simpleIcon('kubernetes', 'Kubernetes', 'platform'),
-  simpleIcon('helm', 'Helm', 'platform'),
-  simpleIcon('argo', 'Argo', 'platform'),
-  simpleIcon('ansible', 'Ansible', 'platform'),
-  simpleIcon('jenkins', 'Jenkins', 'platform'),
-  simpleIcon('gitlab', 'GitLab', 'platform'),
-  simpleIcon('linux', 'Linux', 'platform'),
-  simpleIcon('ubuntu', 'Ubuntu', 'platform'),
+  brandIcon('docker', 'Docker', 'platform'),
+  brandIcon('kubernetes', 'Kubernetes', 'platform'),
+  brandIcon('helm', 'Helm', 'platform'),
+  brandIcon('argo', 'Argo', 'platform'),
+  brandIcon('ansible', 'Ansible', 'platform'),
+  brandIcon('jenkins', 'Jenkins', 'platform'),
+  brandIcon('gitlab', 'GitLab', 'platform'),
+  brandIcon('linux', 'Linux', 'platform'),
+  brandIcon('ubuntu', 'Ubuntu', 'platform'),
 
   // Observability
-  simpleIcon('prometheus', 'Prometheus', 'observability'),
-  simpleIcon('grafana', 'Grafana', 'observability'),
-  simpleIcon('opentelemetry', 'OpenTelemetry', 'observability'),
-  simpleIcon('jaeger', 'Jaeger', 'observability'),
-  simpleIcon('datadog', 'Datadog', 'observability'),
-  simpleIcon('sentry', 'Sentry', 'observability'),
+  brandIcon('prometheus', 'Prometheus', 'observability'),
+  brandIcon('grafana', 'Grafana', 'observability'),
+  brandIcon('opentelemetry', 'OpenTelemetry', 'observability'),
+  brandIcon('jaeger', 'Jaeger', 'observability'),
+  brandIcon('datadog', 'Datadog', 'observability'),
+  brandIcon('sentry', 'Sentry', 'observability'),
 
   // AI and LLM tooling
-  simpleIcon('anthropic', 'Anthropic', 'ai'),
-  simpleIcon('claude', 'Claude', 'ai'),
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    url: 'https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.95.1/icons/openai.svg',
-    isIsometric: false,
-    collection: 'ai'
-  },
-  simpleIcon('googlegemini', 'Google Gemini', 'ai'),
-  simpleIcon('mistralai', 'Mistral AI', 'ai'),
-  simpleIcon('meta', 'Meta (Llama)', 'ai'),
-  simpleIcon('ollama', 'Ollama', 'ai'),
-  simpleIcon('huggingface', 'Hugging Face', 'ai'),
-  simpleIcon('modelcontextprotocol', 'Model Context Protocol (MCP)', 'ai'),
-  simpleIcon('langchain', 'LangChain', 'ai'),
-  simpleIcon('perplexity', 'Perplexity', 'ai')
+  brandIcon('anthropic', 'Anthropic', 'ai'),
+  brandIcon('claude', 'Claude', 'ai'),
+  brandIcon('openai', 'OpenAI', 'ai'),
+  brandIcon('googlegemini', 'Google Gemini', 'ai'),
+  brandIcon('mistralai', 'Mistral AI', 'ai'),
+  brandIcon('meta', 'Meta (Llama)', 'ai'),
+  brandIcon('ollama', 'Ollama', 'ai'),
+  brandIcon('huggingface', 'Hugging Face', 'ai'),
+  brandIcon('modelcontextprotocol', 'Model Context Protocol (MCP)', 'ai'),
+  brandIcon('langchain', 'LangChain', 'ai'),
+  brandIcon('perplexity', 'Perplexity', 'ai')
 ];
 
 export const icons: Icons = [...isopacks, ...cicdIcons, ...techIcons];
