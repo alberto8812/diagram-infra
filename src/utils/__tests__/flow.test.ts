@@ -1068,6 +1068,21 @@ describe('buildFlowStepUpdates() works correctly', () => {
     ).toBe(1500);
   });
 
+  // A duration of only spaces is already treated as absent, because
+  // `Number('   ')` is 0. The label has to agree, or the same input clears one
+  // field and saves an invisible value into the other.
+  test('clears the label when it is only whitespace', () => {
+    expect(
+      buildFlowStepUpdates('conn1', 'REQUEST', '   ', '1500').label
+    ).toBeUndefined();
+  });
+
+  test('keeps the surrounding text of a label that is not only whitespace', () => {
+    expect(
+      buildFlowStepUpdates('conn1', 'REQUEST', '  Ack  ', '1500').label
+    ).toBe('Ack');
+  });
+
   // `durationMs` is `z.number().int().positive().optional()` in
   // src/schemas/flow.ts, so a positive decimal is still invalid data. Without
   // this case the integer rule is unguarded: dropping it leaves every other

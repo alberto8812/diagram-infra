@@ -156,22 +156,47 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     );
   }, []);
 
-  // The "Add step" picker is scoped to the current view's connectors (see
-  // the helper text next to it below), so if the selected connector falls
-  // out of that list — the current view changed, or the connector was
-  // deleted — clear the selection instead of letting a stale id through
-  // (R3-editor-connectors-view-scoped).
+  const editingStep = useMemo(() => {
+    if (!selectedFlow || !editingStepId) return undefined;
+
+    return selectedFlow.steps.find((step) => {
+      return step.id === editingStepId;
+    });
+  }, [selectedFlow, editingStepId]);
+
+  // The picker lists the current view's connectors, but a step being edited
+  // may travel a connector that belongs to another view. Leaving that one out
+  // made the step uneditable: the clearing effect below blanked the field and
+  // the disabled Save button locked the form, so its label and duration could
+  // not be changed either. Its own connector is not a new choice the user is
+  // making — the step already travels it — so it belongs in the list while
+  // that step is open for editing.
+  const pickableConnectors = useMemo(() => {
+    const editedConnector = findFlowStepConnector(views, editingStep);
+
+    if (!editedConnector) return connectors;
+
+    const alreadyListed = connectors.some((connector) => {
+      return connector.id === editedConnector.id;
+    });
+
+    return alreadyListed ? connectors : [...connectors, editedConnector];
+  }, [connectors, views, editingStep]);
+
+  // If the selected connector falls out of the pickable list — the current
+  // view changed, or the connector was deleted — clear the selection instead
+  // of letting a stale id through (R3-editor-connectors-view-scoped).
   useEffect(() => {
     if (newConnectorId === '') return;
 
-    const stillExists = connectors.some((connector) => {
+    const stillExists = pickableConnectors.some((connector) => {
       return connector.id === newConnectorId;
     });
 
     if (!stillExists) {
       setNewConnectorId('');
     }
-  }, [connectors, newConnectorId]);
+  }, [pickableConnectors, newConnectorId]);
 
   const handleAddStep = useCallback(() => {
     if (!selectedFlow || !newConnectorId) return;
@@ -179,19 +204,21 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     // Defense in depth alongside the disabled button below and the clearing
     // effect above: never create a step pointing at a connector that isn't
     // actually in the current view's connector list.
-    const connectorExists = connectors.some((connector) => {
+    const connectorExists = pickableConnectors.some((connector) => {
       return connector.id === newConnectorId;
     });
     if (!connectorExists) return;
 
-    const durationMs = Number(newDurationMs);
-
+    // Same rules as saving an edit: one definition of what an empty or
+    // whitespace-only field means, so adding and editing cannot disagree.
     createFlowStep(selectedFlow.id, {
       id: generateId(),
-      connectorId: newConnectorId,
-      direction: newDirection,
-      ...(newLabel ? { label: newLabel } : {}),
-      ...(newDurationMs && durationMs > 0 ? { durationMs } : {})
+      ...buildFlowStepUpdates(
+        newConnectorId,
+        newDirection,
+        newLabel,
+        newDurationMs
+      )
     });
 
     setNewLabel('');
@@ -202,7 +229,7 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     newDirection,
     newLabel,
     newDurationMs,
-    connectors,
+    pickableConnectors,
     createFlowStep
   ]);
 
@@ -210,7 +237,7 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     if (!selectedFlow || !editingStepId || !newConnectorId) return;
 
     // Same defense in depth as handleAddStep above.
-    const connectorExists = connectors.some((connector) => {
+    const connectorExists = pickableConnectors.some((connector) => {
       return connector.id === newConnectorId;
     });
     if (!connectorExists) return;
@@ -234,7 +261,7 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
     newDirection,
     newLabel,
     newDurationMs,
-    connectors,
+    pickableConnectors,
     updateFlowStep,
     handleCancelEdit
   ]);
@@ -496,7 +523,7 @@ export const FlowEditorDialog = ({ onClose }: Props) => {
                       <MenuItem value="">
                         <em>Select a connector</em>
                       </MenuItem>
-                      {connectors.map((connector) => {
+                      {pickableConnectors.map((connector) => {
                         return (
                           <MenuItem key={connector.id} value={connector.id}>
                             {getConnectorEndpointLabel(connector, items)}

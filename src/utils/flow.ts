@@ -358,7 +358,12 @@ export const buildFlowStepUpdates = (
   direction: FlowStepDirection,
   label: string,
   durationMs: string
-): Partial<Omit<FlowStep, 'id'>> => {
+  // Not `Partial`: `connectorId` and `direction` are always produced, so the
+  // result is a whole step minus its id. That lets the add path spread it
+  // next to a fresh id and reuse these rules, instead of keeping a second
+  // copy that drifts — which is how the trim and the whole-number check came
+  // to disagree between adding and editing in the first place.
+): Omit<FlowStep, 'id'> => {
   const parsedDuration = Number(durationMs);
   const isValidDuration =
     durationMs !== '' && Number.isInteger(parsedDuration) && parsedDuration > 0;
@@ -366,7 +371,11 @@ export const buildFlowStepUpdates = (
   return {
     connectorId,
     direction,
-    label: label || undefined,
+    // Trimmed, so a label of only spaces clears the field like an empty one
+    // does. Without the trim the two fields disagree: `Number('   ')` is 0,
+    // so a whitespace duration is already treated as absent, while a
+    // whitespace label would survive as an invisible value on the step.
+    label: label.trim() || undefined,
     durationMs: isValidDuration ? parsedDuration : undefined
   };
 };
