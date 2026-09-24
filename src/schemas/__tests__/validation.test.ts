@@ -335,6 +335,41 @@ describe('Model validation works correctly', () => {
     expect(result.success).toBe(false);
   });
 
+  test('A model item with a group set round-trips through modelItemSchema', () => {
+    const result = modelItemSchema.safeParse({
+      id: 'groupedItem',
+      name: 'API',
+      group: 'Backend'
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.group).toStrictEqual('Backend');
+    }
+  });
+
+  test('A model item without a group still parses, and group is absent', () => {
+    const result = modelItemSchema.safeParse({
+      id: 'ungroupedItem',
+      name: 'API'
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty('group');
+    }
+  });
+
+  test('A model item with a group over the shared label max length fails validation', () => {
+    const result = modelItemSchema.safeParse({
+      id: 'invalidGroupItem',
+      name: 'Invalid group',
+      group: 'a'.repeat(61)
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   test('A connector with all semantic fields set is valid', () => {
     const result = connectorSchema.safeParse({
       id: 'semanticConnector',

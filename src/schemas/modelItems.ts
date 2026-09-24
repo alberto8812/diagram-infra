@@ -55,6 +55,11 @@ export const modelItemSchema = z.object({
   version: constrainedStrings.label.optional(),
   region: constrainedStrings.label.optional(),
   owner: constrainedStrings.label.optional(),
+  // Free-text logical grouping (e.g. "Preset", "Backend", "Layers") an
+  // architecture-diagram view (roadmap, not yet implemented) draws as a
+  // labelled dashed container. Deliberately not an enum: the author names
+  // their own groups. Same reasoning as engine/version/region/owner above.
+  group: constrainedStrings.label.optional(),
   port: z.number().int().min(1).max(65535).optional(),
   dataClassification: z.enum(dataClassificationOptions).optional(),
   encryptedAtRest: z.boolean().optional(),

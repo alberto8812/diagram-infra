@@ -374,6 +374,19 @@ export const NodeSettings = ({
           />
 
           <TextField
+            label="Group"
+            size="small"
+            inputProps={{ maxLength: LABEL_MAX_LENGTH }}
+            value={modelItem.group ?? ''}
+            onChange={(e) => {
+              const text = e.target.value.slice(0, LABEL_MAX_LENGTH);
+              if ((modelItem.group ?? '') === text) return;
+
+              onModelItemUpdated({ group: text === '' ? undefined : text });
+            }}
+          />
+
+          <TextField
             label="Size"
             size="small"
             placeholder="e.g. db.t3.medium"
