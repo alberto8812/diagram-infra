@@ -366,7 +366,13 @@ export const parseDurationInput = (value: string): ParsedDurationInput => {
   // message. A duration field should read back what was written or say why it
   // cannot.
   const parsed = Number(trimmed);
-  const isValid = /^\d+$/.test(trimmed) && parsed > 0;
+  // `isSafeInteger` as well as the digit check, for the same reason: digits
+  // alone can still name a number this cannot hold. 309 nines overflow to
+  // Infinity (which `JSON.stringify` then writes as `null`), and anything
+  // past Number.MAX_SAFE_INTEGER comes back as a nearby value instead of the
+  // one typed.
+  const isValid =
+    /^\d+$/.test(trimmed) && Number.isSafeInteger(parsed) && parsed > 0;
 
   return isValid
     ? { isValid: true, durationMs: parsed }

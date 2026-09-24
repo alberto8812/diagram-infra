@@ -1166,7 +1166,11 @@ describe('parseDurationInput() works correctly', () => {
     ['exponent notation', '1e3'],
     ['a leading plus sign', '+5'],
     ['a trailing dot', '5.'],
-    ['a zero fraction', '1.0']
+    ['a zero fraction', '1.0'],
+    // All digits, but past what a number can hold: 309 nines overflow to
+    // Infinity, and one above MAX_SAFE_INTEGER comes back as 9007199254740992.
+    ['a digit string that overflows to Infinity', '9'.repeat(309)],
+    ['a digit string past MAX_SAFE_INTEGER', '9007199254740993']
   ])('%s is invalid', (_name, input) => {
     expect(parseDurationInput(input)).toStrictEqual({
       isValid: false,
