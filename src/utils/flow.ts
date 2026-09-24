@@ -303,6 +303,105 @@ export const getFlowStartSteps = (flow: Flow): FlowStep[] => {
   });
 };
 
+// Turns a list flow into a graph flow without changing how it plays: every
+// step is given an explicit `next` derived from its position in the array
+// (`[nextStepIdInArray]`, or `[]` for the last step), so it keeps chaining
+// exactly the way array order already made it chain.
+//
+// This exists because of the all-or-nothing rule in `isGraphFlow`: the
+// instant one step in a flow declares `next`, every step is read as a graph
+// node, and a step that still relies on array order becomes a dead end
+// (`resolveNextSteps` never falls back to the array once any step has opted
+// in). So the moment a user gives one step an explicit successor, every
+// other step needs one too, or the flow silently stops working past that
+// point. This is meant to run at exactly that moment, on a still-linear
+// flow, before the user's own edit is applied.
+//
+// A step that already declares `next` (even an empty one) is left exactly as
+// authored — this only fills in the steps that don't have an opinion yet,
+// it never overwrites one.
+export const withExplicitSuccessors = (steps: FlowStep[]): FlowStep[] => {
+  return steps.map((step, index) => {
+    if (step.next !== undefined) return { ...step };
+
+    const nextStep = steps[index + 1];
+    return { ...step, next: nextStep ? [nextStep.id] : [] };
+  });
+};
+
+// Removes a step and repairs its predecessors' `next` references, so
+// deleting a step from a graph flow behaves like deleting one from a list:
+// the chain closes up around the gap instead of leaving dangling ids or new
+// dead ends. `A -> B -> C`, delete `B`, gives `A -> C`.
+//
+// Only steps that pointed at the removed step are touched, and only their
+// `next` array is rewritten — the removed step's own successors take its
+// place, in order. The splice can introduce a duplicate (two predecessors'
+// paths converging through the deleted step) or a self-reference (a cycle
+// routed through the deleted step, e.g. `A -> B -> A`), so both are cleaned
+// up: duplicates are dropped, keeping the first occurrence's position, and
+// an entry that would end up pointing back at its own step is dropped
+// entirely rather than left as a self-loop.
+//
+// Critically, this never introduces a `next` field on a step that didn't
+// already have one: only a step whose `next` already contains `stepId` is
+// ever rewritten, so a pure list flow (no step declares `next`) stays a list
+// flow after a deletion. Getting this wrong would make the deletion itself
+// flip `isGraphFlow` and turn every other step terminal — the exact hazard
+// `withExplicitSuccessors` exists to contain from the other direction.
+//
+// A `stepId` that isn't present leaves the steps unchanged in content.
+export const removeStepFromFlow = (
+  steps: FlowStep[],
+  stepId: string
+): FlowStep[] => {
+  const removedStep = steps.find((step) => {
+    return step.id === stepId;
+  });
+
+  if (!removedStep) {
+    return steps.map((step) => {
+      return { ...step };
+    });
+  }
+
+  // Without this filter the repair can hand back the very id it is repairing.
+  // A step that lists itself among its successors (`B.next = ['B', 'C']`)
+  // would splice that `B` into every predecessor, so deleting B leaves the
+  // flow still pointing at B — the one outcome this helper exists to prevent,
+  // reached through the replacement instead of through the original entry.
+  const replacement = (removedStep.next ?? []).filter((id) => {
+    return id !== stepId;
+  });
+
+  return steps
+    .filter((step) => {
+      return step.id !== stepId;
+    })
+    .map((step) => {
+      if (step.next === undefined || !step.next.includes(stepId)) {
+        return { ...step };
+      }
+
+      const seen = new Set<string>();
+      const repaired: string[] = [];
+
+      step.next.forEach((id) => {
+        const replacementIds = id === stepId ? replacement : [id];
+
+        replacementIds.forEach((nextId) => {
+          if (nextId === step.id) return;
+          if (seen.has(nextId)) return;
+
+          seen.add(nextId);
+          repaired.push(nextId);
+        });
+      });
+
+      return { ...step, next: repaired };
+    });
+};
+
 // "Add return path": appends a RESPONSE step for every existing REQUEST step
 // of the flow, in reverse order (the request travels to the final node, the
 // response returns the way it came). Each existing step's connector and

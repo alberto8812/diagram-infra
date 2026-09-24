@@ -11,7 +11,9 @@ import {
   resolveNextSteps,
   getFlowStartSteps,
   parseDurationInput,
-  resolvePickableConnectors
+  resolvePickableConnectors,
+  withExplicitSuccessors,
+  removeStepFromFlow
 } from '../flow';
 
 const connector = (id: string, anchors: Connector['anchors']): Connector => {
@@ -1245,5 +1247,244 @@ describe('resolvePickableConnectors() works correctly', () => {
     expect(resolvePickableConnectors([], editedConnector)).toStrictEqual([
       editedConnector
     ]);
+  });
+});
+
+describe('withExplicitSuccessors() works correctly', () => {
+  test('a three-step linear flow chains 1 -> 2 -> 3, with the last step next: []', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST'
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+    const step3: FlowStep = {
+      id: 's3',
+      connectorId: 'conn3',
+      direction: 'REQUEST'
+    };
+
+    expect(withExplicitSuccessors([step1, step2, step3])).toStrictEqual([
+      { ...step1, next: ['s2'] },
+      { ...step2, next: ['s3'] },
+      { ...step3, next: [] }
+    ]);
+  });
+
+  test('a step that already declares next is left untouched while its neighbours are filled', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST'
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST',
+      next: ['s1']
+    };
+    const step3: FlowStep = {
+      id: 's3',
+      connectorId: 'conn3',
+      direction: 'REQUEST'
+    };
+
+    expect(withExplicitSuccessors([step1, step2, step3])).toStrictEqual([
+      { ...step1, next: ['s2'] },
+      step2,
+      { ...step3, next: [] }
+    ]);
+  });
+
+  test('an existing explicit empty next is left untouched, not treated as "unset"', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST',
+      next: []
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+
+    expect(withExplicitSuccessors([step1, step2])).toStrictEqual([
+      step1,
+      { ...step2, next: [] }
+    ]);
+  });
+
+  test('returns an empty array for an empty input', () => {
+    expect(withExplicitSuccessors([])).toStrictEqual([]);
+  });
+
+  test('a single step becomes that step with next: []', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST'
+    };
+
+    expect(withExplicitSuccessors([step1])).toStrictEqual([
+      { ...step1, next: [] }
+    ]);
+  });
+
+  test('does not mutate the input array or its step objects', () => {
+    const step1: FlowStep = {
+      id: 's1',
+      connectorId: 'conn1',
+      direction: 'REQUEST'
+    };
+    const step2: FlowStep = {
+      id: 's2',
+      connectorId: 'conn2',
+      direction: 'REQUEST'
+    };
+    const steps = [step1, step2];
+    const snapshot = steps.map((step) => {
+      return { ...step };
+    });
+
+    withExplicitSuccessors(steps);
+
+    expect(steps).toStrictEqual(snapshot);
+    expect(steps[0]).toBe(step1);
+    expect(steps[1]).toBe(step2);
+    expect(step1.next).toBeUndefined();
+    expect(step2.next).toBeUndefined();
+  });
+});
+
+describe('removeStepFromFlow() works correctly', () => {
+  const makeChain = (): FlowStep[] => {
+    return [
+      { id: 'a', connectorId: 'conn1', direction: 'REQUEST', next: ['b'] },
+      { id: 'b', connectorId: 'conn2', direction: 'REQUEST', next: ['c'] },
+      { id: 'c', connectorId: 'conn3', direction: 'RESPONSE' }
+    ];
+  };
+
+  test('splices the middle of a chain: A -> B -> C, delete B, gives A -> C', () => {
+    const [a, , c] = makeChain();
+
+    expect(removeStepFromFlow(makeChain(), 'b')).toStrictEqual([
+      { ...a, next: ['c'] },
+      c
+    ]);
+  });
+
+  test('deleting a leaf leaves its predecessor with one fewer successor', () => {
+    const steps: FlowStep[] = [
+      {
+        id: 'p',
+        connectorId: 'conn1',
+        direction: 'REQUEST',
+        next: ['leaf', 'other']
+      },
+      { id: 'leaf', connectorId: 'conn2', direction: 'RESPONSE' },
+      { id: 'other', connectorId: 'conn3', direction: 'RESPONSE' }
+    ];
+
+    expect(removeStepFromFlow(steps, 'leaf')).toStrictEqual([
+      { ...steps[0], next: ['other'] },
+      steps[2]
+    ]);
+  });
+
+  test('deleting a step nothing points to leaves everyone else unchanged', () => {
+    const steps: FlowStep[] = [
+      { id: 'a', connectorId: 'conn1', direction: 'REQUEST', next: [] },
+      { id: 'orphan', connectorId: 'conn2', direction: 'REQUEST' }
+    ];
+
+    expect(removeStepFromFlow(steps, 'orphan')).toStrictEqual([steps[0]]);
+  });
+
+  test('a cycle (A -> B -> A): deleting B must not leave A pointing at itself', () => {
+    const steps: FlowStep[] = [
+      { id: 'a', connectorId: 'conn1', direction: 'REQUEST', next: ['b'] },
+      { id: 'b', connectorId: 'conn2', direction: 'REQUEST', next: ['a'] }
+    ];
+
+    expect(removeStepFromFlow(steps, 'b')).toStrictEqual([
+      { ...steps[0], next: [] }
+    ]);
+  });
+
+  // The sibling of the case above, and the one that slipped through: there
+  // the predecessor would have pointed at ITSELF, here it would keep pointing
+  // at the DELETED step. A step listing itself among its successors splices
+  // its own id into every predecessor, so the reference this helper exists to
+  // remove comes back through the replacement instead of the original entry.
+  test('a step that lists itself does not leave its own id behind when deleted', () => {
+    const steps: FlowStep[] = [
+      { id: 'a', connectorId: 'conn1', direction: 'REQUEST', next: ['b'] },
+      { id: 'b', connectorId: 'conn2', direction: 'REQUEST', next: ['b', 'c'] },
+      { id: 'c', connectorId: 'conn3', direction: 'REQUEST', next: [] }
+    ];
+
+    const result = removeStepFromFlow(steps, 'b');
+
+    expect(result[0].next).toStrictEqual(['c']);
+    expect(JSON.stringify(result)).not.toContain('"b"');
+  });
+
+  test('a predecessor that would end up with a duplicate successor gets it once', () => {
+    const steps: FlowStep[] = [
+      {
+        id: 'p',
+        connectorId: 'conn1',
+        direction: 'REQUEST',
+        next: ['b', 'c']
+      },
+      { id: 'b', connectorId: 'conn2', direction: 'REQUEST', next: ['c'] },
+      { id: 'c', connectorId: 'conn3', direction: 'RESPONSE' }
+    ];
+
+    expect(removeStepFromFlow(steps, 'b')).toStrictEqual([
+      { ...steps[0], next: ['c'] },
+      steps[2]
+    ]);
+  });
+
+  // The hazard this whole helper exists to prevent: a deletion must never
+  // introduce `next` on a step that didn't already declare it, or it would
+  // flip isGraphFlow and turn every other (untouched) step into a dead end.
+  test('a pure list flow (no next anywhere) stays a list flow after deletion', () => {
+    const steps: FlowStep[] = [
+      { id: 'a', connectorId: 'conn1', direction: 'REQUEST' },
+      { id: 'b', connectorId: 'conn2', direction: 'REQUEST' },
+      { id: 'c', connectorId: 'conn3', direction: 'REQUEST' }
+    ];
+
+    const result = removeStepFromFlow(steps, 'b');
+
+    expect(result).toStrictEqual([steps[0], steps[2]]);
+    result.forEach((step) => {
+      expect(step.next).toBeUndefined();
+    });
+  });
+
+  test('an unknown stepId returns the steps unchanged in content', () => {
+    const steps = makeChain();
+
+    expect(removeStepFromFlow(steps, 'unknown')).toStrictEqual(steps);
+  });
+
+  test('does not mutate the input array or its step objects', () => {
+    const steps = makeChain();
+    const snapshot = steps.map((step) => {
+      return { ...step };
+    });
+
+    removeStepFromFlow(steps, 'b');
+
+    expect(steps).toStrictEqual(snapshot);
   });
 });
