@@ -318,6 +318,17 @@ export const useScene = () => {
     [getState, setState]
   );
 
+  const setFlowStepSuccessors = useCallback(
+    (flowId: string, stepId: string, next: string[]) => {
+      const newState = reducers.setFlowStepSuccessors(
+        { flowId, stepId, next },
+        getState()
+      );
+      setState(newState);
+    },
+    [getState, setState]
+  );
+
   const reorderFlowSteps = useCallback(
     (flowId: string, stepId: string, toIndex: number) => {
       const newState = reducers.reorderFlowSteps(
@@ -370,6 +381,7 @@ export const useScene = () => {
     createFlowStep,
     updateFlowStep,
     deleteFlowStep,
-    reorderFlowSteps
+    reorderFlowSteps,
+    setFlowStepSuccessors
   };
 };

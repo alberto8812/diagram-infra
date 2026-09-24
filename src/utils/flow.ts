@@ -154,10 +154,21 @@ export const getPacketLabel = (
 // where no step declares `next` is a list, which is exactly what every
 // existing (pre-graph) flow looks like, so it keeps the old array-order
 // behaviour unchanged.
-const isGraphFlow = (flow: Flow): boolean => {
-  return flow.steps.some((step) => {
+//
+// Exported (steps-based, not flow-based) so the flow reducer
+// (src/stores/reducers/flow.ts, setFlowStepSuccessors) can ask the exact
+// same question before deciding whether to backfill with
+// `withExplicitSuccessors` below — one definition of what makes a flow a
+// graph, rather than this predicate and a second copy in the reducer that
+// could silently drift apart.
+export const hasExplicitSuccessors = (steps: FlowStep[]): boolean => {
+  return steps.some((step) => {
     return step.next !== undefined;
   });
+};
+
+const isGraphFlow = (flow: Flow): boolean => {
+  return hasExplicitSuccessors(flow.steps);
 };
 
 // Resolves the step(s) that run after `stepId`.
