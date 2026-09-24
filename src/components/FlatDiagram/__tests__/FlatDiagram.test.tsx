@@ -70,9 +70,52 @@ const baseModel: Pick<InitialData, 'icons' | 'colors' | 'items' | 'views'> = {
   ]
 };
 
+// A second view for the rectangle-derived grouping cases: two items with no
+// `group` field on the model, drawn inside a named rectangle on the canvas,
+// plus one item with an explicit `group` that sits inside a *different*
+// named rectangle — the explicit field must win over the drawn one.
+const rectangleGroupingModel: Pick<
+  InitialData,
+  'icons' | 'colors' | 'items' | 'views'
+> = {
+  icons: [],
+  colors: [],
+  items: [
+    { id: 'derived-a', name: 'Derived A' },
+    { id: 'derived-b', name: 'Derived B' },
+    { id: 'override', name: 'Override item', group: 'Explicit Group' }
+  ],
+  views: [
+    {
+      id: 'view-rect',
+      name: 'View Rect',
+      items: [
+        { id: 'derived-a', tile: { x: 0, y: 0 } },
+        { id: 'derived-b', tile: { x: 1, y: 0 } },
+        // Geometrically inside "Drawn Group", but the explicit `group`
+        // field on this item's model entry must override it.
+        { id: 'override', tile: { x: 0, y: 5 } }
+      ],
+      rectangles: [
+        {
+          id: 'rect-drawn-group',
+          name: 'Drawn Group',
+          from: { x: -1, y: -1 },
+          to: { x: 5, y: 6 }
+        }
+      ]
+    }
+  ]
+};
+
 const modelData: InitialData = {
   ...baseModel,
   title: 'Flat diagram fixture'
+};
+
+const rectangleGroupingModelData: InitialData = {
+  ...rectangleGroupingModel,
+  title: 'Flat diagram rectangle-grouping fixture'
 };
 
 describe('FlatDiagram', () => {
@@ -155,5 +198,44 @@ describe('FlatDiagram', () => {
         within(ungroupedGroup).getByTestId('flat-diagram-item-solo')
       ).getByText('Standalone service', { selector: 'text' })
     ).toBeInTheDocument();
+  });
+
+  test('items with no `group` field land in a container derived from the named rectangle drawn around them', async () => {
+    renderWithProviders(<FlatDiagram />, rectangleGroupingModelData);
+
+    const group = await screen.findByTestId('flat-diagram-group-Drawn Group');
+
+    expect(
+      within(group).getByTestId('flat-diagram-group-border-Drawn Group')
+    ).toBeInTheDocument();
+    expect(within(group).getByText('Drawn Group')).toBeInTheDocument();
+    expect(
+      within(group).getByTestId('flat-diagram-item-derived-a')
+    ).toBeInTheDocument();
+    expect(
+      within(group).getByTestId('flat-diagram-item-derived-b')
+    ).toBeInTheDocument();
+  });
+
+  test('an explicit `group` field on the model item overrides the group derived from a containing rectangle', async () => {
+    renderWithProviders(<FlatDiagram />, rectangleGroupingModelData);
+
+    // 'override' sits geometrically inside the "Drawn Group" rectangle but
+    // has an explicit group of its own, which must win.
+    const explicitGroup = await screen.findByTestId(
+      'flat-diagram-group-Explicit Group'
+    );
+
+    expect(
+      within(explicitGroup).getByTestId('flat-diagram-item-override')
+    ).toBeInTheDocument();
+
+    const drawnGroup = await screen.findByTestId(
+      'flat-diagram-group-Drawn Group'
+    );
+
+    expect(
+      within(drawnGroup).queryByTestId('flat-diagram-item-override')
+    ).toBeNull();
   });
 });

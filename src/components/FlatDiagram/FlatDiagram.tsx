@@ -10,6 +10,9 @@ import {
   FLAT_LAYOUT_ITEM_HEIGHT
 } from 'src/utils/flatLayout';
 import { resolveItemLabels } from './resolveItemLabels';
+import { resolveItemGroups } from './resolveItemGroups';
+import { routeFlatConnector } from './routeFlatConnector';
+import { wrapLabel } from './wrapLabel';
 
 // Rendering-only constants for the flat diagram: how the icon and label sit
 // inside one FLAT_LAYOUT_ITEM_WIDTH x FLAT_LAYOUT_ITEM_HEIGHT cell from
@@ -19,10 +22,13 @@ import { resolveItemLabels } from './resolveItemLabels';
 const ITEM_ICON_SIZE = 48;
 const ITEM_LABEL_FONT_SIZE = 12;
 const ITEM_LABEL_TOP_GAP = 10;
+const ITEM_LABEL_LINE_HEIGHT = 14;
 const GROUP_LABEL_FONT_SIZE = 13;
 const GROUP_LABEL_PADDING = 12;
 const CONNECTOR_STROKE = '#8a94a6';
 const GROUP_BORDER_STROKE = '#8a94a6';
+const CONNECTOR_ARROW_MARKER_ID = 'flat-diagram-connector-arrow';
+const CONNECTOR_ARROW_SIZE = 8;
 
 interface FlatDiagramItemNodeProps {
   modelItem: ModelItem;
@@ -47,6 +53,9 @@ const FlatDiagramItemNode = ({
   label
 }: FlatDiagramItemNodeProps) => {
   const { icon } = useIcon(modelItem.icon);
+  const lines = useMemo(() => {
+    return wrapLabel(label);
+  }, [label]);
 
   return (
     <g
@@ -69,7 +78,22 @@ const FlatDiagramItemNode = ({
         textAnchor="middle"
         fontSize={ITEM_LABEL_FONT_SIZE}
       >
-        {label}
+        {lines.length <= 1
+          ? label
+          : lines.map((line, index) => {
+              return (
+                <tspan
+                  // Lines are positional and never reorder, so the index
+                  // is a stable key here.
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={index}
+                  x={FLAT_LAYOUT_ITEM_WIDTH / 2}
+                  dy={index === 0 ? 0 : ITEM_LABEL_LINE_HEIGHT}
+                >
+                  {line}
+                </tspan>
+              );
+            })}
       </text>
     </g>
   );
@@ -77,10 +101,7 @@ const FlatDiagramItemNode = ({
 
 interface ConnectorLine {
   id: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+  points: { x: number; y: number }[];
 }
 
 // Renders the current view's items/connectors as a flat, deterministic
@@ -104,22 +125,34 @@ export const FlatDiagram = () => {
     );
   }, [modelItems]);
 
+  // Groups derived geometrically from the view's named rectangles (see
+  // resolveItemGroups) — the grouping the user actually drew on the canvas,
+  // since `modelItem.group` is rarely filled in in practice.
+  const derivedGroupById = useMemo(() => {
+    return resolveItemGroups(scene.items, scene.rectangles);
+  }, [scene.items, scene.rectangles]);
+
   // Only the current view's items feed the layout, mapped to the minimal
   // {id, group} shape buildFlatLayout expects. An item that somehow has no
   // matching ModelItem (should not happen in a valid model) is skipped
-  // rather than crashing the whole view.
+  // rather than crashing the whole view. `modelItem.group` is an explicit
+  // manual override and wins whenever it's set; otherwise the group derived
+  // from the containing named rectangle is used.
   const layoutInput = useMemo(() => {
     return scene.items.reduce<{ id: string; group?: string }[]>(
       (acc, viewItem) => {
         const modelItem = itemsById.get(viewItem.id);
         if (!modelItem) return acc;
 
-        acc.push({ id: viewItem.id, group: modelItem.group });
+        acc.push({
+          id: viewItem.id,
+          group: modelItem.group ?? derivedGroupById[viewItem.id]
+        });
         return acc;
       },
       []
     );
-  }, [scene.items, itemsById]);
+  }, [scene.items, itemsById, derivedGroupById]);
 
   const layout = useMemo(() => {
     return buildFlatLayout(layoutInput);
@@ -157,12 +190,13 @@ export const FlatDiagram = () => {
     return map;
   }, [orderedLayoutItems]);
 
-  // One straight line per connector between its first and last anchor's
-  // resolved item centres. No orthogonal routing (explicitly out of scope).
-  // A connector is skipped entirely when it has fewer than two anchors, when
-  // either endpoint anchor references a tile rather than an item
-  // (`ref.item` unset), or when the referenced item is not in this view's
-  // flat layout.
+  // One orthogonal polyline per connector, routed edge-to-edge between its
+  // first and last anchor's resolved items (see routeFlatConnector) instead
+  // of a straight centre-to-centre diagonal, so the line neither crosses
+  // unrelated icons nor cuts through the start/end item itself. A connector
+  // is skipped entirely when it has fewer than two anchors, when either
+  // endpoint anchor references a tile rather than an item (`ref.item`
+  // unset), or when the referenced item is not in this view's flat layout.
   const connectorLines = useMemo(() => {
     return scene.connectors.reduce<ConnectorLine[]>((acc, connector) => {
       const { anchors } = connector;
@@ -176,13 +210,22 @@ export const FlatDiagram = () => {
       const endPosition = positionById.get(lastItemId);
       if (!startPosition || !endPosition) return acc;
 
-      acc.push({
-        id: connector.id,
-        x1: startPosition.x + FLAT_LAYOUT_ITEM_WIDTH / 2,
-        y1: startPosition.y + FLAT_LAYOUT_ITEM_HEIGHT / 2,
-        x2: endPosition.x + FLAT_LAYOUT_ITEM_WIDTH / 2,
-        y2: endPosition.y + FLAT_LAYOUT_ITEM_HEIGHT / 2
-      });
+      const points = routeFlatConnector(
+        {
+          x: startPosition.x,
+          y: startPosition.y,
+          width: FLAT_LAYOUT_ITEM_WIDTH,
+          height: FLAT_LAYOUT_ITEM_HEIGHT
+        },
+        {
+          x: endPosition.x,
+          y: endPosition.y,
+          width: FLAT_LAYOUT_ITEM_WIDTH,
+          height: FLAT_LAYOUT_ITEM_HEIGHT
+        }
+      );
+
+      acc.push({ id: connector.id, points });
 
       return acc;
     }, []);
@@ -200,18 +243,38 @@ export const FlatDiagram = () => {
         role="img"
         aria-label="Flat architecture diagram"
       >
+        <defs>
+          <marker
+            id={CONNECTOR_ARROW_MARKER_ID}
+            viewBox={`0 0 ${CONNECTOR_ARROW_SIZE} ${CONNECTOR_ARROW_SIZE}`}
+            refX={CONNECTOR_ARROW_SIZE - 1}
+            refY={CONNECTOR_ARROW_SIZE / 2}
+            markerWidth={CONNECTOR_ARROW_SIZE}
+            markerHeight={CONNECTOR_ARROW_SIZE}
+            orient="auto-start-reverse"
+          >
+            <path
+              d={`M 0 0 L ${CONNECTOR_ARROW_SIZE} ${CONNECTOR_ARROW_SIZE / 2} L 0 ${CONNECTOR_ARROW_SIZE} z`}
+              fill={CONNECTOR_STROKE}
+            />
+          </marker>
+        </defs>
+
         <g data-testid="flat-diagram-connectors">
           {connectorLines.map((line) => {
             return (
-              <line
+              <polyline
                 key={line.id}
                 data-testid={`flat-diagram-connector-${line.id}`}
-                x1={line.x1}
-                y1={line.y1}
-                x2={line.x2}
-                y2={line.y2}
+                points={line.points
+                  .map((point) => {
+                    return `${point.x},${point.y}`;
+                  })
+                  .join(' ')}
+                fill="none"
                 stroke={CONNECTOR_STROKE}
-                strokeWidth={2}
+                strokeWidth={1.5}
+                markerEnd={`url(#${CONNECTOR_ARROW_MARKER_ID})`}
               />
             );
           })}
